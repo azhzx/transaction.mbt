@@ -1,0 +1,76 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "azhzx/transaction"
+
+// Values
+pub fn[T] atomically((Txn) -> T raise) -> T raise
+
+pub fn commit_version() -> Int
+
+pub fn is_conflict(Error) -> Bool
+
+pub fn is_retry(Error) -> Bool
+
+pub fn on_commit(() -> Unit) -> Unit
+
+// Errors
+pub suberror Conflict {
+  Conflict(Int)
+}
+
+pub suberror Retry {
+  Retry(Int)
+}
+
+// Types and methods
+pub struct TMVar[T] {
+  // private fields
+}
+pub fn[T] TMVar::full(T) -> Self[T]
+pub fn[T] TMVar::is_empty(Self[T], Txn) -> Bool raise
+pub fn[T] TMVar::new() -> Self[T]
+pub fn[T] TMVar::peek(Self[T]) -> T?
+pub fn[T] TMVar::put(Self[T], Txn, T) -> Unit raise
+pub fn[T] TMVar::read(Self[T], Txn) -> T? raise
+pub fn[T] TMVar::take(Self[T], Txn) -> T raise
+pub fn[T] TMVar::try_put(Self[T], Txn, T) -> Bool raise
+pub fn[T] TMVar::try_take(Self[T], Txn) -> T? raise
+
+pub struct TQueue[T] {
+  // private fields
+}
+pub fn[T] TQueue::is_empty(Self[T], Txn) -> Bool raise
+pub fn[T] TQueue::length(Self[T], Txn) -> Int raise
+pub fn[T] TQueue::new() -> Self[T]
+pub fn[T] TQueue::peek(Self[T], Txn) -> T? raise
+pub fn[T] TQueue::pop(Self[T], Txn) -> T raise
+pub fn[T] TQueue::push(Self[T], Txn, T) -> Unit raise
+pub fn[T] TQueue::try_pop(Self[T], Txn) -> T? raise
+
+pub struct TVar[T] {
+  // private fields
+}
+pub fn[T] TVar::equal(Self[T], Self[T]) -> Bool
+pub fn[T] TVar::hash(Self[T]) -> Int
+pub fn[T] TVar::hash_combine(Self[T], Hasher) -> Unit
+pub fn[T] TVar::new(T) -> Self[T]
+pub fn[T] TVar::not_equal(Self[T], Self[T]) -> Bool
+pub fn[T] TVar::peek(Self[T]) -> T
+pub impl[T] Eq for TVar[T]
+pub impl[T] Hash for TVar[T]
+
+pub struct Txn {
+  // private fields
+}
+pub fn Txn::begin() -> Self
+pub fn Txn::check(Self, Bool) -> Unit raise Retry
+pub fn[T] Txn::modify(Self, TVar[T], (T) -> T raise) -> Unit raise
+pub fn[T] Txn::or_else(Self, (Self) -> T raise, (Self) -> T raise) -> T raise
+pub fn[T] Txn::read(Self, TVar[T]) -> T raise Conflict
+pub fn[T] Txn::retry(Self) -> T raise Retry
+pub fn[T] Txn::run(Self, (Self) -> T raise) -> T raise
+pub async fn[T] Txn::run_async(Self, async (Self) -> T) -> T
+pub fn[T] Txn::write(Self, TVar[T], T) -> Unit
+
+// Type aliases
+
+// Traits

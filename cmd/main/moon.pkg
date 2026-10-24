@@ -1,0 +1,7 @@
+import {
+  "azhzx/transaction",
+  "azhzx/transaction/runner",
+  "moonbitlang/async" @aio,
+}
+
+pkgtype(kind: "executable")
