@@ -51,3 +51,14 @@ jobs:
         with:
           name: coverage-report
           path: coverage.xml
+
+  bench:
+    name: Benchmarks (native)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hustcer/setup-moonbit@v1
+      # Informational only: shared runners are too noisy for thresholds.
+      - name: Run benchmarks
+        run: moon bench --target native --release

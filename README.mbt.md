@@ -206,17 +206,20 @@ ports by wrapping the validation/commit section in a lock.
 ## Development
 
 ```sh
-moon test                    # wasm (default) — includes README and docstring tests
-moon test --target native    # native backend
-moon run cmd/main            # runnable example (see below)
-moon info && moon fmt        # refresh .mbti interfaces and format
+moon test                            # wasm (default) — includes README and docstring tests
+moon test --target native            # native backend
+moon bench --target native --release # benchmark suite (see doc/en.md)
+moon run cmd/main                    # runnable example (see below)
+moon info && moon fmt                # refresh .mbti interfaces and format
 ```
 
 Tests live in four layers: docstring/README doctests, unit tests (`*_test.mbt`,
 `*_wbtest.mbt` next to each package), randomized stress suites with
-deterministic seeds (`stress_test.mbt`, `runner/stress_test.mbt`), and
-integration scenarios (`tests/`). CI runs check, build, both test targets,
-the example program, and coverage on every push and pull request.
+deterministic seeds (`stress_test.mbt`, `chaos_stress_test.mbt`, and their
+runner counterparts), and integration scenarios (`tests/`). A benchmark
+suite (`transaction_bench_test.mbt`) measures the core transaction paths.
+CI runs check, build, both test targets, the example program, coverage, and
+benchmarks on every push and pull request.
 
 ### Runnable example
 
