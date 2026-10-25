@@ -129,3 +129,90 @@ test "undo actions clear pending entries for every tvar" {
   inspect(a.value, content="0")
   inspect(b.value, content="0")
 }
+
+///|
+test "begin records the current commit clock" {
+  let tv = TVar::new(0)
+  atomically(txn => txn.write(tv, 1))
+  let txn = Txn::begin()
+  inspect(txn.validated_at == commit_version(), content="true")
+}
+
+///|
+test "revalidate refreshes the clock after foreign commits" {
+  let mine = TVar::new(0)
+  let other = TVar::new(0)
+  let txn = Txn::begin()
+  ignore(txn.read(mine)) // records a validator at the initial version
+  atomically(txn => txn.write(other, 1)) // clock bumps, `mine` untouched
+  ignore(txn.read(mine)) // validators pass, so the read succeeds
+  inspect(txn.validated_at == commit_version(), content="true")
+}
+
+///|
+test "pending sets never leak across many transactions" {
+  let tv = TVar::new(0)
+  let mut s = 21
+  for t in 0..<100 {
+    let txn = Txn::begin()
+    txn.write(tv, t)
+    s = (s * 3 + t) % 997
+    if s % 2 == 0 {
+      txn.run(_ => ())
+    } else {
+      txn.rollback()
+    }
+  }
+  inspect(tv.pending.length(), content="0")
+}
+
+///|
+test "commit listeners observe post-commit state" {
+  let tv = TVar::new(0)
+  let seen = Ref(-1)
+  on_commit(() => seen.val = tv.peek())
+  atomically(txn => txn.write(tv, 5))
+  inspect(seen.val, content="5")
+}
+
+///|
+test "nested or_else keeps every branch point isolated" {
+  let tv = TVar::new(0)
+  let txn = Txn::begin()
+  ignore(
+    txn.or_else(
+      t => {
+        t.or_else(
+          t2 => {
+            t2.write(tv, 1)
+            t2.retry()
+          },
+          t2 => {
+            t2.write(tv, 2)
+            t2.retry()
+          },
+        )
+      },
+      t => {
+        t.write(tv, 3)
+        t.read(tv)
+      },
+    ),
+  )
+  // Only the outer second branch survives: its pending value and one log
+  // entry each, everything from the inner branches was rolled back.
+  assert_true(tv.pending.get(txn.id) is Some(3))
+  inspect(txn.undo.length(), content="1")
+  inspect(txn.commits.length(), content="1")
+  txn.run(_ => ())
+  inspect(tv.value, content="3")
+}
+
+///|
+test "error predicates discriminate" {
+  assert_true(is_retry(Retry(1)))
+  assert_true(is_conflict(Conflict(1)))
+  assert_false(is_retry(Conflict(1)))
+  assert_false(is_conflict(Retry(1)))
+  assert_false(is_retry(Failure("x")))
+}

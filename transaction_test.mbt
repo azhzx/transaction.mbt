@@ -282,6 +282,7 @@ test "tqueue non-blocking reads and writes" {
   assert_true(@transaction.atomically(t => queue.try_pop(t)) is Some(1))
   assert_true(@transaction.atomically(t => queue.try_pop(t)) is Some(2))
   assert_true(@transaction.atomically(t => queue.try_pop(t)) is None)
+  assert_true(@transaction.atomically(t => queue.peek(t)) is None)
   inspect(@transaction.atomically(t => queue.is_empty(t)), content="true")
 }
 
