@@ -185,9 +185,23 @@ async test "bounded buffer applies backpressure" {
   let pushed = Ref(0)
   let popped = Ref(0)
   let max_seen = Ref(0)
+  // Fill to the cap up front and record one committed observation of it:
+  // this pins `max_seen` at the cap, so the observer's "never exceeded"
+  // assertion below cannot pass vacuously on a run that never saw a
+  // non-empty buffer.
+  for i in 1..<=cap {
+    @runner.atomically_async(txn => buffer.push(txn, i))
+  }
+  @runner.atomically_async(txn => {
+    let len = buffer.length(txn)
+    if len > max_seen.val {
+      max_seen.val = len
+    }
+  })
+  inspect(max_seen.val, content="3")
   @aio.with_task_group(group => {
     group.spawn_bg(() => {
-      for i in 1..<=20 {
+      for i in (cap + 1)..<=20 {
         @runner.atomically_async(txn => {
           txn.check(buffer.length(txn) < cap)
           buffer.push(txn, i)
@@ -214,9 +228,10 @@ async test "bounded buffer applies backpressure" {
       }
     })
   })
-  inspect(pushed.val, content="20")
+  // 17 in-group pushes after the 3 pre-fill pushes: 20 items moved overall.
+  inspect(pushed.val, content="17")
   inspect(popped.val, content="20")
-  inspect(max_seen.val <= cap, content="true")
+  inspect(max_seen.val, content="3")
   inspect(@transaction.atomically(txn => buffer.is_empty(txn)), content="true")
 }
 

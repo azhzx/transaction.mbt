@@ -6,7 +6,12 @@
 /// Deterministic pseudo-random value in `0..16383`; see the core package's
 /// `stress_test.mbt` for the rationale.
 fn pseudo(seed : Int, salt : Int) -> Int {
-  ((seed & 0x7FFF) * 11549 + (salt & 0x7FFF) * 7887 + 12345) & 0x7FFF
+  let mut x = ((seed & 0x7FFF) * 11549 + (salt & 0x7FFF) * 7887 + 12345) &
+    0x7FFF
+  x = x ^ (x >> 7)
+  x = (x * 49297) & 0x7FFF
+  x = x ^ (x >> 4)
+  x
 }
 
 ///|
@@ -202,7 +207,10 @@ test "peek only ever shows committed values" {
         (fail("planned rollback") : Unit)
       }
     }) catch {
-      _ => ()
+      err => {
+        assert_true(!@transaction.is_retry(err))
+        assert_true(!@transaction.is_conflict(err))
+      }
     }
     if commits {
       model = i

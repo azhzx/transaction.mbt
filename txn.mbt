@@ -158,7 +158,7 @@ pub fn[T] Txn::modify(
 ///       txn.write(balance, funds - 100)
 ///     })
 ///   catch {
-///     _ => ()
+///     err => assert_true(@transaction.is_retry(err))
 ///   } noraise {
 ///     _ => fail("expected the transaction to retry")
 ///   }

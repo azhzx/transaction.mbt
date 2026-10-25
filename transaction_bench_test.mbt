@@ -149,7 +149,7 @@ test "bench tqueue push and pop pair (empty queue)" (it : @bench.T) {
 }
 
 ///|
-test "bench tqueue batch of 100 push/pop at length 100" (it : @bench.T) {
+test "bench tqueue 100 pushes then 100 pops in one transaction" (it : @bench.T) {
   let queue : @transaction.TQueue[Int] = @transaction.TQueue::new()
   it.bench(() => {
     try! @transaction.atomically(txn => {

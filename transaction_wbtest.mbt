@@ -33,7 +33,10 @@ test "rollback removes pending entries" {
       (fail("boom") : Int)
     })
   catch {
-    _ => ()
+    err => {
+      assert_true(!is_retry(err))
+      assert_true(!is_conflict(err))
+    }
   } noraise {
     _ => fail("expected the body error to propagate")
   }

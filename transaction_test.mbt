@@ -22,7 +22,10 @@ test "atomically discards writes when the body raises" {
       (fail("boom") : Int)
     })
   catch {
-    _ => ()
+    err => {
+      assert_true(!@transaction.is_retry(err))
+      assert_true(!@transaction.is_conflict(err))
+    }
   } noraise {
     _ => fail("expected the body error to propagate")
   }
@@ -182,7 +185,7 @@ test "or_else propagates errors other than retry" {
       })
     })
   catch {
-    _ => ()
+    err => assert_true(!@transaction.is_retry(err))
   } noraise {
     _ => fail("expected the first branch error to propagate")
   }

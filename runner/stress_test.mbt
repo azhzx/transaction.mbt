@@ -9,7 +9,12 @@
 /// Deterministic pseudo-random value in `0..16383`; see `stress_test.mbt` in
 /// the core package for the rationale.
 fn pseudo(seed : Int, salt : Int) -> Int {
-  ((seed & 0x7FFF) * 11549 + (salt & 0x7FFF) * 7887 + 12345) & 0x7FFF
+  let mut x = ((seed & 0x7FFF) * 11549 + (salt & 0x7FFF) * 7887 + 12345) &
+    0x7FFF
+  x = x ^ (x >> 7)
+  x = (x * 49297) & 0x7FFF
+  x = x ^ (x >> 4)
+  x
 }
 
 ///|
@@ -283,7 +288,10 @@ async test "async body errors propagate and roll back" {
       (fail("stop") : Unit)
     })
   catch {
-    _ => ()
+    err => {
+      assert_true(!@transaction.is_retry(err))
+      assert_true(!@transaction.is_conflict(err))
+    }
   } noraise {
     _ => fail("expected the body error to propagate")
   }
@@ -307,7 +315,10 @@ async test "or_else second-branch errors propagate and roll back" {
       )
     })
   catch {
-    _ => ()
+    err => {
+      assert_true(!@transaction.is_retry(err))
+      assert_true(!@transaction.is_conflict(err))
+    }
   } noraise {
     _ => fail("expected the second branch error to propagate")
   }

@@ -6,11 +6,19 @@
 // sequential model or a global invariant that must survive the whole run.
 
 ///|
-/// A deterministic pseudo-random value in `0..16383`. Chaining
-/// `pseudo(pseudo(s, a), b)` yields reproducible streams; all intermediate
-/// products stay far below `2^31`, so behavior is identical on every backend.
+/// A deterministic pseudo-random value in `0..32767`. Chaining
+/// `pseudo(pseudo(s, a), b)` yields reproducible streams; the xorshift-style
+/// final mix decorrelates consecutive draws (a bare linear chain makes
+/// `pseudo(s, t)` and `pseudo(s, t+1)` near-duplicates, which silently
+/// narrows the scenarios a stress test visits). All intermediate products
+/// stay far below `2^31`, so behavior is identical on every backend.
 fn pseudo(seed : Int, salt : Int) -> Int {
-  ((seed & 0x7FFF) * 11549 + (salt & 0x7FFF) * 7887 + 12345) & 0x7FFF
+  let mut x = ((seed & 0x7FFF) * 11549 + (salt & 0x7FFF) * 7887 + 12345) &
+    0x7FFF
+  x = x ^ (x >> 7)
+  x = (x * 49297) & 0x7FFF
+  x = x ^ (x >> 4)
+  x
 }
 
 ///|
@@ -195,18 +203,19 @@ test "retry surfaces to synchronous callers and composes with loops" {
 }
 
 ///|
-test "commit clock is monotonic under mixed load" {
+test "commit clock advances exactly once per write transaction" {
   let cell = @transaction.TVar::new(0)
-  let mut prev = @transaction.commit_version()
+  let mut expected = @transaction.commit_version()
   for i in 0..<200 {
     if i % 3 == 0 {
       @transaction.atomically(txn => txn.write(cell, i))
+      expected = expected + 1
     } else {
       ignore(@transaction.atomically(txn => txn.read(cell)))
     }
-    let now = @transaction.commit_version()
-    assert_true(now >= prev)
-    prev = now
+    // Exact, not just monotonic: read-only and empty transactions must
+    // leave the clock untouched, writes must bump it exactly once.
+    inspect(@transaction.commit_version() == expected, content="true")
   }
 }
 
@@ -232,7 +241,13 @@ test "randomized failures roll back every write" {
         fail("planned failure")
       }
     }) catch {
-      _ => committed.val = false
+      err => {
+        // A planned body failure must surface as a body error, never as a
+        // misrouted Retry/Conflict from the STM machinery itself.
+        assert_true(!@transaction.is_retry(err))
+        assert_true(!@transaction.is_conflict(err))
+        committed.val = false
+      }
     }
     if fail_at < vars {
       assert_false(committed.val)
@@ -348,8 +363,12 @@ test "all-or-nothing across many tvars" {
   for _ in 0..<vars {
     tvs.push(@transaction.TVar::new(0))
   }
+  let mut committed_value = 0
   for t in 1..<=25 {
-    let fail_at = pseudo(t, 8) % (vars + 1)
+    // Even rounds always commit, odd rounds fail at a random write index:
+    // without the guaranteed commits, a run where every round happened to
+    // fail would assert only the all-zero state and prove nothing.
+    let fail_at = if t % 2 == 0 { vars } else { pseudo(t, 8) % vars }
     @transaction.atomically(txn => {
       for tv in tvs {
         txn.write(tv, t)
@@ -358,9 +377,16 @@ test "all-or-nothing across many tvars" {
         fail("planned failure")
       }
     }) catch {
-      _ => ()
+      err => {
+        assert_true(!@transaction.is_retry(err))
+        assert_true(!@transaction.is_conflict(err))
+      }
     }
-    let expected = if fail_at < vars { 0 } else { t }
+    if fail_at == vars {
+      committed_value = t
+    }
+    // A failed round rolls back to the last committed value, not to zero.
+    let expected = committed_value
     let mut wrong = 0
     for tv in tvs {
       if tv.peek() != expected {
@@ -369,4 +395,6 @@ test "all-or-nothing across many tvars" {
     }
     inspect(wrong, content="0")
   }
+  // The deterministic commit rounds must actually have run.
+  inspect(tvs[0].peek(), content="24")
 }

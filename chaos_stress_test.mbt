@@ -29,7 +29,10 @@ test "chaos: mixed operations at volume match a sequential model" {
           txn.write(cell, model + 12345)
           (fail("planned") : Unit)
         }) catch {
-          _ => ()
+          err => {
+            assert_true(!@transaction.is_retry(err))
+            assert_true(!@transaction.is_conflict(err))
+          }
         }
       _ => {
         // or_else with a full fallback source.
@@ -97,7 +100,10 @@ test "thousand-tvar transactions are all-or-nothing" {
     }
     fail("planned")
   }) catch {
-    _ => ()
+    err => {
+      assert_true(!@transaction.is_retry(err))
+      assert_true(!@transaction.is_conflict(err))
+    }
   }
   let mut ones = 0
   let mut others = 0
