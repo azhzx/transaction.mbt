@@ -63,10 +63,12 @@ pub struct Txn {
 }
 pub fn Txn::begin() -> Self
 pub fn Txn::check(Self, Bool) -> Unit raise Retry
+pub fn Txn::commit(Self) -> Unit raise Conflict
 pub fn[T] Txn::modify(Self, TVar[T], (T) -> T raise) -> Unit raise
 pub fn[T] Txn::or_else(Self, (Self) -> T raise, (Self) -> T raise) -> T raise
 pub fn[T] Txn::read(Self, TVar[T]) -> T raise Conflict
 pub fn[T] Txn::retry(Self) -> T raise Retry
+pub fn Txn::rollback(Self) -> Unit
 pub fn[T] Txn::run(Self, (Self) -> T raise) -> T raise
 pub async fn[T] Txn::run_async(Self, async (Self) -> T) -> T
 pub fn[T] Txn::write(Self, TVar[T], T) -> Unit
