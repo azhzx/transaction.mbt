@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: Check & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hustcer/setup-moonbit@v1
+      - name: Type check (default target)
+        run: moon check
+      - name: Build library
+        run: moon build
+      - name: Run the example program
+        run: moon run cmd/main --target native
+
+  test:
+    name: Test (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [wasm, native]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hustcer/setup-moonbit@v1
+      - name: Run all tests
+        run: moon test --target ${{ matrix.target }}
+
+  coverage:
+    name: Coverage (wasm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hustcer/setup-moonbit@v1
+      - name: Run tests with coverage instrumentation
+        run: moon test --enable-coverage
+      - name: Coverage summary
+        run: moon coverage report -f summary
+      - name: Coverage report (cobertura)
+        run: moon coverage report -f cobertura -o coverage.xml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
