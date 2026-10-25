@@ -203,8 +203,18 @@ MoonBit 任务在单线程事件循环上协作调度，任意数量任务共享
 共享内存后端，只需把"验证+提交"同步段包进一把锁即可迁移（时钟与日志结构
 已就位）。
 
-核心包在所有后端（wasm、wasm-gc、native）构建；runner 依赖
-`moonbitlang/async`，已在 wasm 与 native 上测试。
+后端支持情况：
+
+| 包 | wasm | wasm-gc | js | native |
+|---|---|---|---|---|
+| core | ✓ | ✓ | ✓ | ✓ |
+| runner | ✓ | — | ✓ | ✓ |
+
+核心包零依赖，在所有后端均可类型检查。runner 依赖 `moonbitlang/async`，
+其当前版本（0.21.x）没有提供 wasm-gc 入口（`run_async_main`），因此依赖
+runner 的包声明了 `supported_targets = "wasm+js+native"`，工具链在
+wasm-gc 上自动跳过它们。待 `moonbitlang/async` 后续版本支持 wasm-gc 后，
+放宽声明即可。
 
 ## 测试与持续集成
 

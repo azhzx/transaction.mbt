@@ -242,8 +242,19 @@ by the toolchain today; if a shared-memory backend arrives, the design
 ports by wrapping the validation/commit section in a lock (the logs and
 clock are already in place).
 
-The core package builds on every backend (wasm, wasm-gc, native); the
-runner needs `moonbitlang/async` and is tested on wasm and native.
+Backend support:
+
+| Package | wasm | wasm-gc | js | native |
+|---|---|---|---|---|
+| core | ✓ | ✓ | ✓ | ✓ |
+| runner | ✓ | — | ✓ | ✓ |
+
+The core package is dependency-free and type-checks on every backend. The
+runner needs `moonbitlang/async`; its current release (0.21.x) ships no
+wasm-gc entry point (`run_async_main`), so the runner-dependent packages
+declare `supported_targets = "wasm+js+native"` and the toolchain skips them
+on wasm-gc. If a later `moonbitlang/async` adds wasm-gc support, the
+declaration can simply be widened.
 
 ## Testing and CI
 

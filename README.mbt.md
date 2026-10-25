@@ -53,8 +53,16 @@ keep side effects (I/O, logging) out of it or make them idempotent.
 | `azhzx/transaction` | Core: `TVar`, `Txn`, `atomically`, `TMVar`, `TQueue` | nothing beyond core |
 | `azhzx/transaction/runner` | `atomically_async`: transactions whose body may `await` | `moonbitlang/async` |
 
-The core package stays dependency-free and builds on every backend; the
-runner layer is where the async runtime meets transactions.
+Backend support:
+
+| Package | wasm | wasm-gc | js | native |
+|---|---|---|---|---|
+| core | ✓ | ✓ | ✓ | ✓ |
+| runner | ✓ | — | ✓ | ✓ |
+
+The core package stays dependency-free and checks on every backend. The
+runner needs `moonbitlang/async`, whose current release has no wasm-gc entry
+point; the affected packages declare `supported_targets` accordingly.
 
 ## Quick start
 
