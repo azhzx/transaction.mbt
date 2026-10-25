@@ -1,6 +1,6 @@
 ///|
-/// Showcase for the STM library. Run with `moon run cmd/main` (add
-/// `--target native` for a native build).
+/// Showcase for the STM library. Run with `moon run examples/showcase`
+/// (add `--target native` for a native build).
 async fn main {
   // 1. An atomic transfer between two accounts: both writes commit together,
   //    and `check` retries the transaction while funds are insufficient.

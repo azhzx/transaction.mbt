@@ -256,7 +256,7 @@ runner needs `moonbitlang/async` and is tested on wasm and native.
   old/new observation is impossible by construction and asserted to stay
   at zero.
 - CI (GitHub Actions) runs `moon check`, `moon build`, `moon test` on wasm
-  and native, the runnable example (`moon run cmd/main`), coverage
+  and native, the runnable example (`moon run examples/showcase`), coverage
   (`moon test --enable-coverage` + `moon coverage report`), and the
   benchmark suite (`moon bench --target native --release`, informational).
 

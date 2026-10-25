@@ -214,7 +214,7 @@ MoonBit 任务在单线程事件循环上协作调度，任意数量任务共享
   TVar，观察者读到一半故意挂起——按构造不可能观察到新旧混合值，测试断言其
   恒为零。
 - CI（GitHub Actions）执行 `moon check`、`moon build`、双后端 `moon test`、
-  可运行示例（`moon run cmd/main`）、覆盖率（`moon test --enable-coverage` +
+  可运行示例（`moon run examples/showcase`）、覆盖率（`moon test --enable-coverage` +
   `moon coverage report`）与基准测试（`moon bench --target native
   --release`，仅供参考）。
 

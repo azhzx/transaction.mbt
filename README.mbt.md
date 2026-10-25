@@ -209,7 +209,7 @@ ports by wrapping the validation/commit section in a lock.
 moon test                            # wasm (default) — includes README and docstring tests
 moon test --target native            # native backend
 moon bench --target native --release # benchmark suite (see doc/en.md)
-moon run cmd/main                    # runnable example (see below)
+moon run examples/showcase           # runnable example (see below)
 moon info && moon fmt                # refresh .mbti interfaces and format
 ```
 
@@ -223,12 +223,12 @@ benchmarks on every push and pull request.
 
 ### Runnable example
 
-`cmd/main` is a self-contained showcase (atomic transfer + a blocking
-producer/consumer pipeline):
+`examples/showcase` is a self-contained showcase (atomic transfer + a
+blocking producer/consumer pipeline):
 
 ```sh
-moon run cmd/main               # wasm
-moon run cmd/main --target native
+moon run examples/showcase               # wasm
+moon run examples/showcase --target native
 ```
 
 Output:
