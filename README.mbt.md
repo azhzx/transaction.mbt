@@ -1,8 +1,13 @@
 # azhzx/transaction
 
+[![CI](https://github.com/azhzx/transaction.mbt/actions/workflows/ci.yml/badge.svg)](https://github.com/azhzx/transaction.mbt/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+
 Software Transactional Memory (STM) for [MoonBit](https://moonbitlang.com):
 shared `TVar`s updated by atomic, composable transactions, with blocking that
 composes (`retry` / `or_else`) instead of deadlocking.
+
+**Documentation:** [English manual](doc/en.md) · [中文手册](doc/zh.md)
 
 ```mbt check
 ///|
@@ -53,7 +58,13 @@ runner layer is where the async runtime meets transactions.
 
 ## Quick start
 
-Add the module, then import the packages you need in `moon.pkg`:
+Install the module:
+
+```sh
+moon add azhzx/transaction
+```
+
+Then import the packages you need in `moon.pkg`:
 
 ```moonbit nocheck
 ///|
@@ -197,10 +208,36 @@ ports by wrapping the validation/commit section in a lock.
 ```sh
 moon test                    # wasm (default) — includes README and docstring tests
 moon test --target native    # native backend
-moon run cmd/main            # small showcase program
+moon run cmd/main            # runnable example (see below)
 moon info && moon fmt        # refresh .mbti interfaces and format
+```
+
+Tests live in four layers: docstring/README doctests, unit tests (`*_test.mbt`,
+`*_wbtest.mbt` next to each package), randomized stress suites with
+deterministic seeds (`stress_test.mbt`, `runner/stress_test.mbt`), and
+integration scenarios (`tests/`). CI runs check, build, both test targets,
+the example program, and coverage on every push and pull request.
+
+### Runnable example
+
+`cmd/main` is a self-contained showcase (atomic transfer + a blocking
+producer/consumer pipeline):
+
+```sh
+moon run cmd/main               # wasm
+moon run cmd/main --target native
+```
+
+Output:
+
+```text
+after transfer: alice=70, bob=50
+consumer received: [10, 20, 30]
 ```
 
 ## License
 
-Apache-2.0
+Apache-2.0. The STM semantics (retry/orElse, blocking on the read set) follow
+the published research literature (see the
+[manual](doc/en.md#references-and-acknowledgements)); the implementation is
+original MoonBit code — nothing is ported from other projects.
