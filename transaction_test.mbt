@@ -19,7 +19,7 @@ test "atomically discards writes when the body raises" {
   try
     @transaction.atomically(txn => {
       txn.write(cell, 99)
-      (fail("boom") : Int)
+      (fail("boom") : Int32)
     })
   catch {
     err => {
@@ -199,7 +199,7 @@ test "tvar equality and hashing follow identity" {
   let b = @transaction.TVar::new(1)
   assert_true(a == a)
   assert_true(a != b)
-  let by_key : Map[@transaction.TVar[Int], String] = Map([])
+  let by_key : Map[@transaction.TVar[Int32], String] = Map([])
   by_key[a] = "a"
   by_key[b] = "b"
   inspect(by_key[a], content="a")
@@ -217,7 +217,7 @@ test "tmvar put and take round-trip" {
 
 ///|
 test "tmvar take retries while empty" {
-  let box : @transaction.TMVar[Int] = @transaction.TMVar::new()
+  let box : @transaction.TMVar[Int32] = @transaction.TMVar::new()
   try @transaction.atomically(txn => box.take(txn)) catch {
     err => assert_true(@transaction.is_retry(err))
   } noraise {
@@ -264,7 +264,7 @@ test "tqueue preserves FIFO order" {
 
 ///|
 test "tqueue pop retries while empty" {
-  let queue : @transaction.TQueue[Int] = @transaction.TQueue::new()
+  let queue : @transaction.TQueue[Int32] = @transaction.TQueue::new()
   try @transaction.atomically(t => queue.pop(t)) catch {
     err => assert_true(@transaction.is_retry(err))
   } noraise {

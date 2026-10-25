@@ -1,6 +1,6 @@
 ///|
 /// Monotonic identifier source for transactional variables.
-let tvar_next_id : Ref[Int] = Ref(0)
+let tvar_next_id : Ref[Int32] = Ref(0)
 
 ///|
 /// A shared transactional variable, the unit of state an STM program is built
@@ -28,10 +28,10 @@ let tvar_next_id : Ref[Int] = Ref(0)
 /// }
 /// ```
 pub struct TVar[T] {
-  priv id : Int
+  priv id : Int32
   priv mut value : T
-  priv mut version : Int
-  priv pending : Map[Int, T]
+  priv mut version : Int32
+  priv pending : Map[Int32, T]
 }
 
 ///|

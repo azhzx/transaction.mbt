@@ -29,7 +29,7 @@ pub struct TQueue[T] {
 /// # Example
 /// ```mbt check
 /// test {
-///   let queue : @transaction.TQueue[Int] = @transaction.TQueue::new()
+///   let queue : @transaction.TQueue[Int32] = @transaction.TQueue::new()
 ///   let txn = @transaction.Txn::begin()
 ///   inspect(txn.run(t => queue.is_empty(t)), content="true")
 /// }
@@ -85,7 +85,7 @@ pub fn[T] TQueue::pop(self : TQueue[T], txn : Txn) -> T raise {
 /// # Example
 /// ```mbt check
 /// test {
-///   let queue : @transaction.TQueue[Int] = @transaction.TQueue::new()
+///   let queue : @transaction.TQueue[Int32] = @transaction.TQueue::new()
 ///   let txn = @transaction.Txn::begin()
 ///   assert_true(txn.run(t => queue.try_pop(t)) is None)
 /// }
@@ -124,7 +124,7 @@ pub fn[T] TQueue::peek(self : TQueue[T], txn : Txn) -> T? raise {
 ///
 /// This is a transactional read: outside a transaction it reports the last
 /// committed length.
-pub fn[T] TQueue::length(self : TQueue[T], txn : Txn) -> Int raise {
+pub fn[T] TQueue::length(self : TQueue[T], txn : Txn) -> Int32 raise {
   txn.read(self.items).length()
 }
 

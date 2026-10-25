@@ -37,7 +37,7 @@ test "chaos: mixed operations at volume match a sequential model" {
       _ => {
         // or_else with a full fallback source.
         let box = @transaction.TMVar::full(s)
-        let picked : Int = @transaction.atomically(txn => {
+        let picked : Int32 = @transaction.atomically(txn => {
           txn.or_else(t => t.retry(), t => box.take(t))
         })
         if picked != s {
@@ -57,7 +57,7 @@ test "deep or_else chains stay correct at every depth" {
   let depth = 8
   for ready in 0..<depth {
     // `ready`-th cell full, all others empty; the chain must reach it.
-    let cells : Array[@transaction.TMVar[Int]] = []
+    let cells : Array[@transaction.TMVar[Int32]] = []
     for i in 0..<depth {
       let cell = @transaction.TMVar::new()
       if i == ready {
@@ -67,7 +67,7 @@ test "deep or_else chains stay correct at every depth" {
     }
     let picked = @transaction.atomically(txn => {
       // Fold the cells into one right-nested or_else chain.
-      fn go(i : Int) -> Int raise {
+      fn go(i : Int32) -> Int32 raise {
         if i >= cells.length() {
           txn.retry()
         } else {
@@ -83,7 +83,7 @@ test "deep or_else chains stay correct at every depth" {
 ///|
 test "thousand-tvar transactions are all-or-nothing" {
   let n = 1000
-  let tvs : Array[@transaction.TVar[Int]] = []
+  let tvs : Array[@transaction.TVar[Int32]] = []
   for _ in 0..<n {
     tvs.push(@transaction.TVar::new(0))
   }
@@ -140,7 +140,7 @@ test "rollback-heavy churn keeps state stable" {
 ///|
 test "interleaved live handles commit and rollback independently" {
   let n = 50
-  let tvs : Array[@transaction.TVar[Int]] = []
+  let tvs : Array[@transaction.TVar[Int32]] = []
   for _ in 0..<n {
     tvs.push(@transaction.TVar::new(-1))
   }

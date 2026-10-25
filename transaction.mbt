@@ -1,7 +1,7 @@
 ///|
 /// The global commit version. It starts at zero and advances once for every
 /// transaction that commits at least one write.
-let commit_clock : Ref[Int] = Ref(0)
+let commit_clock : Ref[Int32] = Ref(0)
 
 ///|
 /// Callbacks invoked after a transaction commits writes. Listeners are
@@ -14,7 +14,7 @@ let commit_listeners : Array[() -> Unit] = []
 /// A transaction that retried at version `v` should run again after this value
 /// becomes greater than `v`. Blocking runners use it to decide when to wake a
 /// parked transaction.
-pub fn commit_version() -> Int {
+pub fn commit_version() -> Int32 {
   commit_clock.val
 }
 

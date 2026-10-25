@@ -5,7 +5,7 @@
 ///|
 /// Deterministic pseudo-random value in `0..16383`; see the core package's
 /// `stress_test.mbt` for the rationale.
-fn pseudo(seed : Int, salt : Int) -> Int {
+fn pseudo(seed : Int32, salt : Int32) -> Int32 {
   let mut x = ((seed & 0x7FFF) * 11549 + (salt & 0x7FFF) * 7887 + 12345) &
     0x7FFF
   x = x ^ (x >> 7)
@@ -45,7 +45,7 @@ fn planned_raise(message~ : String) -> Unit raise {
 ///|
 test "id allocator never repeats" {
   let next = @transaction.TVar::new(0)
-  let seen : Map[Int, Unit] = Map([])
+  let seen : Map[Int32, Unit] = Map([])
   for _ in 0..<300 {
     let id = @transaction.atomically(txn => {
       let current = txn.read(next)
@@ -101,8 +101,8 @@ test "ticket booking sells exactly the available seats" {
 
 ///|
 test "bulk queue transfer is atomic" {
-  let inbox : @transaction.TQueue[Int] = @transaction.TQueue::new()
-  let archive : @transaction.TQueue[Int] = @transaction.TQueue::new()
+  let inbox : @transaction.TQueue[Int32] = @transaction.TQueue::new()
+  let archive : @transaction.TQueue[Int32] = @transaction.TQueue::new()
   for i in 1..<=50 {
     @transaction.atomically(txn => inbox.push(txn, i))
   }

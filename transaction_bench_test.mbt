@@ -34,7 +34,7 @@ test "bench read-modify-write transaction (1 tvar)" (it : @bench.T) {
 
 ///|
 test "bench read-only transaction (10 tvars)" (it : @bench.T) {
-  let tvs : Array[@transaction.TVar[Int]] = []
+  let tvs : Array[@transaction.TVar[Int32]] = []
   for i in 0..<10 {
     tvs.push(@transaction.TVar::new(i))
   }
@@ -52,7 +52,7 @@ test "bench read-only transaction (10 tvars)" (it : @bench.T) {
 
 ///|
 test "bench read-modify-write transaction (10 tvars)" (it : @bench.T) {
-  let tvs : Array[@transaction.TVar[Int]] = []
+  let tvs : Array[@transaction.TVar[Int32]] = []
   for _ in 0..<10 {
     tvs.push(@transaction.TVar::new(0))
   }
@@ -107,7 +107,7 @@ test "bench or_else with a successful first branch" (it : @bench.T) {
 
 ///|
 test "bench or_else falling back to the second branch" (it : @bench.T) {
-  let empty : @transaction.TMVar[Int] = @transaction.TMVar::new()
+  let empty : @transaction.TMVar[Int32] = @transaction.TMVar::new()
   it.bench(() => {
     let v = try! @transaction.atomically(txn => {
       txn.or_else(t => empty.take(t), _ => 7)
@@ -140,7 +140,7 @@ test "bench manual begin, write, and rollback" (it : @bench.T) {
 
 ///|
 test "bench tqueue push and pop pair (empty queue)" (it : @bench.T) {
-  let queue : @transaction.TQueue[Int] = @transaction.TQueue::new()
+  let queue : @transaction.TQueue[Int32] = @transaction.TQueue::new()
   it.bench(() => {
     try! @transaction.atomically(txn => queue.push(txn, 1))
     let v = try! @transaction.atomically(txn => queue.pop(txn))
@@ -150,7 +150,7 @@ test "bench tqueue push and pop pair (empty queue)" (it : @bench.T) {
 
 ///|
 test "bench tqueue 100 pushes then 100 pops in one transaction" (it : @bench.T) {
-  let queue : @transaction.TQueue[Int] = @transaction.TQueue::new()
+  let queue : @transaction.TQueue[Int32] = @transaction.TQueue::new()
   it.bench(() => {
     try! @transaction.atomically(txn => {
       for i in 0..<100 {
@@ -167,7 +167,7 @@ test "bench tqueue 100 pushes then 100 pops in one transaction" (it : @bench.T) 
 
 ///|
 test "bench tmvar put and take pair" (it : @bench.T) {
-  let box : @transaction.TMVar[Int] = @transaction.TMVar::new()
+  let box : @transaction.TMVar[Int32] = @transaction.TMVar::new()
   it.bench(() => {
     try! @transaction.atomically(txn => box.put(txn, 1))
     let v = try! @transaction.atomically(txn => box.take(txn))

@@ -4,7 +4,7 @@ package "azhzx/transaction"
 // Values
 pub fn[T] atomically((Txn) -> T raise) -> T raise
 
-pub fn commit_version() -> Int
+pub fn commit_version() -> Int32
 
 pub fn is_conflict(Error) -> Bool
 
@@ -14,11 +14,11 @@ pub fn on_commit(() -> Unit) -> Unit
 
 // Errors
 pub suberror Conflict {
-  Conflict(Int)
+  Conflict(Int32)
 }
 
 pub suberror Retry {
-  Retry(Int)
+  Retry(Int32)
 }
 
 // Types and methods
@@ -39,7 +39,7 @@ pub struct TQueue[T] {
   // private fields
 }
 pub fn[T] TQueue::is_empty(Self[T], Txn) -> Bool raise
-pub fn[T] TQueue::length(Self[T], Txn) -> Int raise
+pub fn[T] TQueue::length(Self[T], Txn) -> Int32 raise
 pub fn[T] TQueue::new() -> Self[T]
 pub fn[T] TQueue::peek(Self[T], Txn) -> T? raise
 pub fn[T] TQueue::pop(Self[T], Txn) -> T raise
@@ -50,7 +50,7 @@ pub struct TVar[T] {
   // private fields
 }
 pub fn[T] TVar::equal(Self[T], Self[T]) -> Bool
-pub fn[T] TVar::hash(Self[T]) -> Int
+pub fn[T] TVar::hash(Self[T]) -> Int32
 pub fn[T] TVar::hash_combine(Self[T], Hasher) -> Unit
 pub fn[T] TVar::new(T) -> Self[T]
 pub fn[T] TVar::not_equal(Self[T], Self[T]) -> Bool

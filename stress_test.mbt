@@ -12,7 +12,7 @@
 /// `pseudo(s, t)` and `pseudo(s, t+1)` near-duplicates, which silently
 /// narrows the scenarios a stress test visits). All intermediate products
 /// stay far below `2^31`, so behavior is identical on every backend.
-fn pseudo(seed : Int, salt : Int) -> Int {
+fn pseudo(seed : Int32, salt : Int32) -> Int32 {
   let mut x = ((seed & 0x7FFF) * 11549 + (salt & 0x7FFF) * 7887 + 12345) &
     0x7FFF
   x = x ^ (x >> 7)
@@ -25,8 +25,8 @@ fn pseudo(seed : Int, salt : Int) -> Int {
 test "bank stress: conservation and per-account correctness" {
   let accounts = 8
   let transfers = 400
-  let balances : Array[@transaction.TVar[Int]] = []
-  let model : Array[Int] = []
+  let balances : Array[@transaction.TVar[Int32]] = []
+  let model : Array[Int32] = []
   let mut s = 7
   for i in 0..<accounts {
     let initial = 100 + i * 10
@@ -93,8 +93,8 @@ test "random write sequences match a sequential model" {
 ///|
 test "multi-tvar transactions match a sequential model" {
   let vars = 6
-  let tvs : Array[@transaction.TVar[Int]] = []
-  let model : Array[Int] = []
+  let tvs : Array[@transaction.TVar[Int32]] = []
+  let model : Array[Int32] = []
   for _ in 0..<vars {
     tvs.push(@transaction.TVar::new(0))
     model.push(0)
@@ -222,8 +222,8 @@ test "commit clock advances exactly once per write transaction" {
 ///|
 test "randomized failures roll back every write" {
   let vars = 5
-  let tvs : Array[@transaction.TVar[Int]] = []
-  let model : Array[Int] = []
+  let tvs : Array[@transaction.TVar[Int32]] = []
+  let model : Array[Int32] = []
   for _ in 0..<vars {
     tvs.push(@transaction.TVar::new(0))
     model.push(0)
@@ -265,8 +265,8 @@ test "randomized failures roll back every write" {
 
 ///|
 test "tvar identity holds at creation scale" {
-  let created : Array[@transaction.TVar[Int]] = []
-  let seen : Map[@transaction.TVar[Int], Int] = Map([])
+  let created : Array[@transaction.TVar[Int32]] = []
+  let seen : Map[@transaction.TVar[Int32], Int32] = Map([])
   for i in 0..<300 {
     let tv = @transaction.TVar::new(i)
     created.push(tv)
@@ -280,8 +280,8 @@ test "tvar identity holds at creation scale" {
 
 ///|
 test "tqueue matches a sequential deque model" {
-  let queue : @transaction.TQueue[Int] = @transaction.TQueue::new()
-  let model : Array[Int] = [] // front at index 0
+  let queue : @transaction.TQueue[Int32] = @transaction.TQueue::new()
+  let model : Array[Int32] = [] // front at index 0
   let mut head = 0
   let mut s = 5
   for t in 0..<400 {
@@ -316,8 +316,8 @@ test "tqueue matches a sequential deque model" {
 
 ///|
 test "tmvar matches a model cell" {
-  let box : @transaction.TMVar[Int] = @transaction.TMVar::new()
-  let mut model : Int? = None
+  let box : @transaction.TMVar[Int32] = @transaction.TMVar::new()
+  let mut model : Int32? = None
   let mut s = 13
   for t in 0..<300 {
     s = pseudo(s, t)
@@ -359,7 +359,7 @@ test "empty and read-only transactions leave no trace" {
 ///|
 test "all-or-nothing across many tvars" {
   let vars = 40
-  let tvs : Array[@transaction.TVar[Int]] = []
+  let tvs : Array[@transaction.TVar[Int32]] = []
   for _ in 0..<vars {
     tvs.push(@transaction.TVar::new(0))
   }

@@ -7,7 +7,7 @@
 /// until the commit version advances, then runs the body again from the
 /// beginning. Under `atomically` the error propagates to the caller.
 pub suberror Retry {
-  Retry(Int)
+  Retry(Int32)
 }
 
 ///|
@@ -19,7 +19,7 @@ pub suberror Retry {
 /// detected. `atomically` and `atomically_async` restart the body
 /// automatically; only custom runners see this error.
 pub suberror Conflict {
-  Conflict(Int)
+  Conflict(Int32)
 }
 
 ///|
@@ -33,7 +33,7 @@ pub suberror Conflict {
 /// # Example
 /// ```mbt check
 /// test {
-///   let cell : @transaction.TVar[Int] = @transaction.TVar::new(0)
+///   let cell : @transaction.TVar[Int32] = @transaction.TVar::new(0)
 ///   try
 ///     @transaction.atomically(txn => {
 ///       txn.check(txn.read(cell) > 0)

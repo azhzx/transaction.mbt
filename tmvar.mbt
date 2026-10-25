@@ -74,7 +74,7 @@ pub fn[T] TMVar::read(self : TMVar[T], txn : Txn) -> T? raise {
 /// # Example
 /// ```mbt check
 /// test {
-///   let box : @transaction.TMVar[Int] = @transaction.TMVar::new()
+///   let box : @transaction.TMVar[Int32] = @transaction.TMVar::new()
 ///   let empty = @transaction.atomically(txn => box.is_empty(txn))
 ///   inspect(empty, content="true")
 /// }

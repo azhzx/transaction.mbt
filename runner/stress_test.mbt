@@ -8,7 +8,7 @@
 ///|
 /// Deterministic pseudo-random value in `0..16383`; see `stress_test.mbt` in
 /// the core package for the rationale.
-fn pseudo(seed : Int, salt : Int) -> Int {
+fn pseudo(seed : Int32, salt : Int32) -> Int32 {
   let mut x = ((seed & 0x7FFF) * 11549 + (salt & 0x7FFF) * 7887 + 12345) &
     0x7FFF
   x = x ^ (x >> 7)
@@ -23,8 +23,8 @@ async test "queue stress: conservation and per-producer order" {
   let items = 30
   let consumers = 2
   let total = producers * items
-  let queue : @transaction.TQueue[Int] = @transaction.TQueue::new()
-  let consumed : Array[Int] = []
+  let queue : @transaction.TQueue[Int32] = @transaction.TQueue::new()
+  let consumed : Array[Int32] = []
   @aio.with_task_group(group => {
     for _ in 0..<consumers {
       group.spawn_bg(() => {
@@ -65,7 +65,7 @@ async test "queue stress: conservation and per-producer order" {
 async test "concurrent bank stress keeps the total" {
   let accounts = 5
   let rounds = 60
-  let balances : Array[@transaction.TVar[Int]] = []
+  let balances : Array[@transaction.TVar[Int32]] = []
   for _ in 0..<accounts {
     balances.push(@transaction.TVar::new(200))
   }
@@ -105,7 +105,7 @@ async test "observers never see a torn multi-tvar update" {
   let nvars = 8
   let rounds = 40
   let observations = 100
-  let tvs : Array[@transaction.TVar[Int]] = []
+  let tvs : Array[@transaction.TVar[Int32]] = []
   for _ in 0..<nvars {
     tvs.push(@transaction.TVar::new(0))
   }
@@ -146,8 +146,8 @@ async test "observers never see a torn multi-tvar update" {
 ///|
 async test "all parked consumers wake and complete" {
   let n = 5
-  let queue : @transaction.TQueue[Int] = @transaction.TQueue::new()
-  let consumed : Array[Int] = []
+  let queue : @transaction.TQueue[Int32] = @transaction.TQueue::new()
+  let consumed : Array[Int32] = []
   @aio.with_task_group(group => {
     for _ in 0..<n {
       group.spawn_bg(() => {
@@ -161,7 +161,7 @@ async test "all parked consumers wake and complete" {
     }
   })
   inspect(consumed.length(), content="5")
-  let counts : Map[Int, Int] = Map([])
+  let counts : Map[Int32, Int32] = Map([])
   for v in consumed {
     counts[v] = counts.get(v).unwrap_or(0) + 1
   }
@@ -302,7 +302,7 @@ async test "async body errors propagate and roll back" {
 
 ///|
 async test "or_else second-branch errors propagate and roll back" {
-  let a : @transaction.TMVar[Int] = @transaction.TMVar::new()
+  let a : @transaction.TMVar[Int32] = @transaction.TMVar::new()
   let cell = @transaction.TVar::new(0)
   try
     @runner.atomically_async(txn => {

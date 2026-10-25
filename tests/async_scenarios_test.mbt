@@ -75,7 +75,7 @@ async test "transactional semaphore caps concurrency" {
 
 ///|
 async test "poison pills stop every worker exactly once" {
-  let jobs : @transaction.TQueue[Int] = @transaction.TQueue::new()
+  let jobs : @transaction.TQueue[Int32] = @transaction.TQueue::new()
   let workers = 3
   let processed = Ref(0)
   @aio.with_task_group(group => {
@@ -103,8 +103,8 @@ async test "poison pills stop every worker exactly once" {
 
 ///|
 async test "or_else merges two queues with conservation" {
-  let fast : @transaction.TQueue[Int] = @transaction.TQueue::new()
-  let slow : @transaction.TQueue[Int] = @transaction.TQueue::new()
+  let fast : @transaction.TQueue[Int32] = @transaction.TQueue::new()
+  let slow : @transaction.TQueue[Int32] = @transaction.TQueue::new()
   let total = Ref(0)
   @aio.with_task_group(group => {
     group.spawn_bg(() => {
@@ -132,9 +132,9 @@ async test "or_else merges two queues with conservation" {
 
 ///|
 async test "mailbox server processes commands in order" {
-  let mailbox : @transaction.TQueue[Int] = @transaction.TQueue::new()
+  let mailbox : @transaction.TQueue[Int32] = @transaction.TQueue::new()
   let state = @transaction.TVar::new(0)
-  let log : Array[Int] = []
+  let log : Array[Int32] = []
   @aio.with_task_group(group => {
     group.spawn_bg(() => {
       for _ in 0..<8 {
@@ -180,7 +180,7 @@ async test "watchers wake when the config version changes" {
 
 ///|
 async test "bounded buffer applies backpressure" {
-  let buffer : @transaction.TQueue[Int] = @transaction.TQueue::new()
+  let buffer : @transaction.TQueue[Int32] = @transaction.TQueue::new()
   let cap = 3
   let pushed = Ref(0)
   let popped = Ref(0)
@@ -237,8 +237,8 @@ async test "bounded buffer applies backpressure" {
 
 ///|
 async test "staged pipeline transforms every item in order" {
-  let raw : @transaction.TQueue[Int] = @transaction.TQueue::new()
-  let doubled : @transaction.TQueue[Int] = @transaction.TQueue::new()
+  let raw : @transaction.TQueue[Int32] = @transaction.TQueue::new()
+  let doubled : @transaction.TQueue[Int32] = @transaction.TQueue::new()
   let done = @transaction.TVar::new([])
   @aio.with_task_group(group => {
     group.spawn_bg(() => {

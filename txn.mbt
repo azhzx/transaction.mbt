@@ -1,6 +1,6 @@
 ///|
 /// Monotonic identifier source for transactions.
-let txn_next_id : Ref[Int] = Ref(0)
+let txn_next_id : Ref[Int32] = Ref(0)
 
 ///|
 /// A handle to one running transaction.
@@ -10,11 +10,11 @@ let txn_next_id : Ref[Int] = Ref(0)
 /// Prefer `atomically` (or `@transaction/runner.atomically_async` for bodies
 /// that need to await) over creating and running a handle manually.
 pub struct Txn {
-  priv id : Int
+  priv id : Int32
   priv undo : Array[() -> Unit]
   priv commits : Array[() -> Unit]
   priv validators : Array[() -> Bool]
-  priv mut validated_at : Int
+  priv mut validated_at : Int32
 }
 
 ///|
@@ -193,9 +193,9 @@ pub fn Txn::check(self : Txn, condition : Bool) -> Unit raise Retry {
 ///|
 fn Txn::rollback_to(
   self : Txn,
-  undo_mark : Int,
-  commit_mark : Int,
-  validator_mark : Int,
+  undo_mark : Int32,
+  commit_mark : Int32,
+  validator_mark : Int32,
 ) -> Unit {
   for i = self.undo.length() - 1; i >= undo_mark; i = i - 1 {
     self.undo[i]()

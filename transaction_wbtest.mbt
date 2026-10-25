@@ -30,7 +30,7 @@ test "rollback removes pending entries" {
   try
     txn.run(t => {
       t.write(tv, 99)
-      (fail("boom") : Int)
+      (fail("boom") : Int32)
     })
   catch {
     err => {

@@ -108,7 +108,7 @@ and is woken by the next commit to a variable the transaction read:
 ```mbt check
 ///|
 test "retry blocks the transaction, not the program" {
-  let balance : @transaction.TVar[Int] = @transaction.TVar::new(0)
+  let balance : @transaction.TVar[Int32] = @transaction.TVar::new(0)
   try
     @transaction.atomically(txn => {
       txn.check(txn.read(balance) >= 10)
@@ -145,7 +145,7 @@ runner:
 ```mbt nocheck
 ///|
 async test "consumer parks until a producer commits" {
-  let jobs : @transaction.TQueue[Int] = @transaction.TQueue::new()
+  let jobs : @transaction.TQueue[Int32] = @transaction.TQueue::new()
   let received = Ref(0)
   @aio.with_task_group(group => {
     group.spawn_bg(() => {

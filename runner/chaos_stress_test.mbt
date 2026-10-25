@@ -34,8 +34,8 @@ async test "high-volume queue churn conserves every item" {
   let producers = 4
   let items = 250
   let consumers = 4
-  let queue : @transaction.TQueue[Int] = @transaction.TQueue::new()
-  let consumed : Array[Int] = []
+  let queue : @transaction.TQueue[Int32] = @transaction.TQueue::new()
+  let consumed : Array[Int32] = []
   @aio.with_task_group(group => {
     for _ in 0..<consumers {
       group.spawn_bg(() => {
