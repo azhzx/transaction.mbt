@@ -303,3 +303,54 @@ test "committed arrays are never mutated in place" {
   debug_inspect(snapshot, content="[1]")
   debug_inspect(cell.peek(), content="[1, 2]")
 }
+
+///|
+test "manual rollback discards buffered writes and frees the handle" {
+  let a = @transaction.TVar::new(1)
+  let b = @transaction.TVar::new(2)
+  let txn = @transaction.Txn::begin()
+  txn.write(a, 100)
+  txn.write(b, 200)
+  txn.rollback()
+  inspect(a.peek(), content="1")
+  inspect(b.peek(), content="2")
+  txn.run(t => {
+    t.write(a, 10)
+    t.write(b, 20)
+  })
+  inspect(a.peek(), content="10")
+  inspect(b.peek(), content="20")
+}
+
+///|
+test "manual commit applies buffered writes atomically" {
+  let a = @transaction.TVar::new(0)
+  let b = @transaction.TVar::new(0)
+  let before = @transaction.commit_version()
+  let txn = @transaction.Txn::begin()
+  txn.write(a, 1)
+  txn.write(b, 2)
+  txn.commit()
+  inspect(a.peek(), content="1")
+  inspect(b.peek(), content="2")
+  inspect(@transaction.commit_version() - before, content="1")
+}
+
+///|
+test "manual commit conflicts and rolls back after a foreign commit" {
+  let cell = @transaction.TVar::new(0)
+  let txn = @transaction.Txn::begin()
+  txn.write(cell, 1)
+  // A foreign transaction commits the same variable while ours is in flight.
+  @transaction.atomically(t => t.write(cell, 5))
+  try txn.commit() catch {
+    err => assert_true(@transaction.is_conflict(err))
+  } noraise {
+    _ => fail("expected the stale commit to conflict")
+  }
+  // The conflicting attempt was rolled back; the foreign value stands.
+  inspect(cell.peek(), content="5")
+  // And the handle still works afterwards.
+  txn.run(t => t.write(cell, 9))
+  inspect(cell.peek(), content="9")
+}

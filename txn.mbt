@@ -206,12 +206,50 @@ fn Txn::rollback_to(
 }
 
 ///|
-fn Txn::rollback(self : Txn) -> Unit {
+/// Discard every buffered write of this transaction and remove its pending
+/// entries from the variables it touched.
+///
+/// This is the low-level rollback behind `Txn::run`: prefer raising an error
+/// out of the body and letting the runner roll back. Manual control is meant
+/// for custom runners. The handle is reusable afterwards — logs are cleared,
+/// so a later `run` or `commit` starts from a clean slate.
+///
+/// # Example
+/// ```mbt check
+/// test {
+///   let cell = @transaction.TVar::new(1)
+///   let txn = @transaction.Txn::begin()
+///   txn.write(cell, 99)
+///   txn.rollback()
+///   inspect(cell.peek(), content="1")
+///   txn.run(t => t.write(cell, 2))
+///   inspect(cell.peek(), content="2")
+/// }
+/// ```
+pub fn Txn::rollback(self : Txn) -> Unit {
   self.rollback_to(0, 0, 0)
 }
 
 ///|
-fn Txn::commit(self : Txn) -> Unit raise Conflict {
+/// Validate the read set and apply every buffered write as one atomic step.
+///
+/// This is the low-level commit behind `Txn::run`, for custom runners: call
+/// it once the body has finished successfully. Raises `Conflict` — after
+/// rolling this handle back — when a variable the transaction read has been
+/// committed by another transaction in the meantime; dispatch with
+/// `is_conflict` and restart the body on a fresh handle.
+///
+/// # Example
+/// ```mbt check
+/// test {
+///   let cell = @transaction.TVar::new(1)
+///   let txn = @transaction.Txn::begin()
+///   txn.write(cell, 2)
+///   txn.commit()
+///   inspect(cell.peek(), content="2")
+/// }
+/// ```
+pub fn Txn::commit(self : Txn) -> Unit raise Conflict {
   for validate in self.validators {
     if !validate() {
       self.rollback()

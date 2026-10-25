@@ -120,6 +120,8 @@ retries while empty).
 | `Txn::check` | `(Txn, Bool) -> Unit raise Retry` | Retry unless the condition holds |
 | `Txn::retry` | `(Txn) -> T raise Retry` | Block the transaction |
 | `Txn::or_else` | `(Txn, (Txn) -> T raise, (Txn) -> T raise) -> T raise` | Compositional choice |
+| `Txn::commit` | `(Txn) -> Unit raise Conflict` | Low-level manual commit (custom runners) |
+| `Txn::rollback` | `(Txn) -> Unit` | Low-level manual rollback (custom runners) |
 | `atomically` | `((Txn) -> T raise) -> T raise` | Run one synchronous transaction |
 | `is_retry` / `is_conflict` | `(Error) -> Bool` | Dispatch on the abstract `raise` |
 | `commit_version` | `() -> Int` | The global commit clock (custom runners) |
@@ -137,7 +139,13 @@ when they refer to the same variable.
 | `atomically_async(f)` | Run an await-capable transaction; `Retry` parks the task until any commit, `Conflict` restarts after one yield |
 
 Low-level primitives for custom runners: `Txn::begin`, `Txn::run`,
-`Txn::run_async`, `commit_version`, `on_commit`.
+`Txn::run_async`, `Txn::commit`, `Txn::rollback`, `commit_version`,
+`on_commit`. A custom runner drives a handle through
+`begin` → body (`run` / `run_async`, or manual `write` + `commit`) and
+restarts on `Retry` / `Conflict` — exactly what `atomically` and
+`atomically_async` do internally. `commit` validates and applies the
+buffered writes (raising `Conflict` after rolling back if the snapshot went
+stale); `rollback` discards them. Both leave the handle reusable.
 
 ## Semantics and rules
 
@@ -248,8 +256,33 @@ runner needs `moonbitlang/async` and is tested on wasm and native.
   old/new observation is impossible by construction and asserted to stay
   at zero.
 - CI (GitHub Actions) runs `moon check`, `moon build`, `moon test` on wasm
-  and native, the runnable example (`moon run cmd/main`), and coverage
-  (`moon test --enable-coverage` + `moon coverage report`).
+  and native, the runnable example (`moon run cmd/main`), coverage
+  (`moon test --enable-coverage` + `moon coverage report`), and the
+  benchmark suite (`moon bench --target native --release`, informational).
+
+### Benchmarks
+
+`transaction_bench_test.mbt` measures the core paths
+(`moon bench --target native --release`). Indicative results on Apple
+Silicon:
+
+| Path | Time per transaction |
+|---|---|
+| plain reference increment (baseline, no STM) | ~8 ns |
+| read-only transaction, 1 TVar | ~92 ns |
+| read-modify-write transaction, 1 TVar | ~140 ns |
+| read-only transaction, 10 TVars | ~256 ns |
+| read-modify-write transaction, 10 TVars | ~840 ns |
+| rollback via `retry` / via body error | ~140–205 ns |
+| `or_else` dispatch (either branch) | ~105–120 ns |
+| manual `begin` + `write` + `commit` / `rollback` | ~165–240 ns |
+| `TQueue` push+pop pair on an empty queue | ~375 ns |
+| `TQueue` 100 pushes + 100 pops at length 100 | ~38 µs (O(n) copies) |
+| `TMVar` put+take pair | ~365 ns |
+
+The queue numbers quantify the known debt: the array-copy representation
+makes long queues expensive, which is why a two-list representation is on
+the roadmap.
 
 ## Comparison with alternatives
 

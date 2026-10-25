@@ -100,6 +100,8 @@ retry，则丢弃其全部效果改跑 `second`。在 runner 下，组合后的�
 | `Txn::check` | `(Txn, Bool) -> Unit raise Retry` | 条件不成立则重试 |
 | `Txn::retry` | `(Txn) -> T raise Retry` | 阻塞当前事务 |
 | `Txn::or_else` | `(Txn, (Txn) -> T raise, (Txn) -> T raise) -> T raise` | 组合式选择 |
+| `Txn::commit` | `(Txn) -> Unit raise Conflict` | 手动提交（自定义 runner） |
+| `Txn::rollback` | `(Txn) -> Unit` | 手动回滚（自定义 runner） |
 | `atomically` | `((Txn) -> T raise) -> T raise` | 运行一个同步事务 |
 | `is_retry` / `is_conflict` | `(Error) -> Bool` | 在抽象 `raise` 上做错误分派 |
 | `commit_version` | `() -> Int` | 全局提交时钟（自定义 runner 用） |
@@ -115,8 +117,13 @@ retry，则丢弃其全部效果改跑 `second`。在 runner 下，组合后的�
 |---|---|
 | `atomically_async(f)` | 运行可 await 的事务；`Retry` 挂起任务直到任意提交，`Conflict` 让出一次后自动重跑 |
 
-自定义 runner 可用的底层原语：`Txn::begin`、`Txn::run`、`Txn::run_async`、
-`commit_version`、`on_commit`。
+自定义 runner 可用的底层原语：`Txn::begin`、`Txn::run`、
+`Txn::run_async`、`Txn::commit`、`Txn::rollback`、`commit_version`、
+`on_commit`。自定义 runner 的驱动方式是 `begin` → 事务体（`run` /
+`run_async`，或手动 `write` + `commit`），并在 `Retry` / `Conflict` 时重启
+——正是 `atomically` 与 `atomically_async` 内部的做法。`commit` 校验读集并
+原子应用缓冲写入（快照过期则回滚后抛 `Conflict`）；`rollback` 丢弃全部
+写入。两者之后句柄均可复用。
 
 ## 语义与使用规则
 
@@ -207,8 +214,31 @@ MoonBit 任务在单线程事件循环上协作调度，任意数量任务共享
   TVar，观察者读到一半故意挂起——按构造不可能观察到新旧混合值，测试断言其
   恒为零。
 - CI（GitHub Actions）执行 `moon check`、`moon build`、双后端 `moon test`、
-  可运行示例（`moon run cmd/main`）与覆盖率（`moon test --enable-coverage` +
-  `moon coverage report`）。
+  可运行示例（`moon run cmd/main`）、覆盖率（`moon test --enable-coverage` +
+  `moon coverage report`）与基准测试（`moon bench --target native
+  --release`，仅供参考）。
+
+### 基准测试
+
+`transaction_bench_test.mbt` 度量核心路径（`moon bench --target native
+--release`）。Apple Silicon 上的参考数据：
+
+| 路径 | 单事务耗时 |
+|---|---|
+| 纯引用自增（基线，无 STM） | ~8 ns |
+| 只读事务，1 个 TVar | ~92 ns |
+| 读-改-写事务，1 个 TVar | ~140 ns |
+| 只读事务，10 个 TVar | ~256 ns |
+| 读-改-写事务，10 个 TVar | ~840 ns |
+| 经 `retry` / 事务体错误回滚 | ~140–205 ns |
+| `or_else` 分派（两个分支） | ~105–120 ns |
+| 手动 `begin` + `write` + `commit` / `rollback` | ~165–240 ns |
+| `TQueue` 空队列 push+pop 对 | ~375 ns |
+| `TQueue` 长度 100 时 100 push + 100 pop | ~38 µs（O(n) 拷贝） |
+| `TMVar` put+take 对 | ~365 ns |
+
+队列两组数字定量呈现了已知技术债：数组拷贝式实现让长队列变贵，这正是
+路线图中双列表表示法的动机。
 
 ## 与其他方案对比
 
