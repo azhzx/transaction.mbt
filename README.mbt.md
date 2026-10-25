@@ -229,7 +229,7 @@ suite (`transaction_bench_test.mbt`) measures the core transaction paths.
 CI runs check, build, both test targets, the example program, coverage, and
 benchmarks on every push and pull request.
 
-### Runnable example
+### Runnable examples
 
 `examples/showcase` is a self-contained showcase (atomic transfer + a
 blocking producer/consumer pipeline):
@@ -244,6 +244,26 @@ Output:
 ```text
 after transfer: alice=70, bob=50
 consumer received: [10, 20, 30]
+```
+
+`examples/rollback` is a minimal bank-withdrawal demo: a blocked overdraft,
+a withdrawal written and then rejected by a policy rule (rolled back — the
+balance never dips), and a legal withdrawal that commits:
+
+```sh
+moon run examples/rollback
+```
+
+Output:
+
+```text
+withdraw 500: blocked (insufficient funds)
+  balance: 100
+withdraw 60: rejected and rolled back
+  reason: would drop below the minimum balance of 50
+  balance: 100
+withdraw 30: committed
+  balance: 70
 ```
 
 ## License

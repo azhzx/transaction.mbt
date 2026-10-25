@@ -23,6 +23,8 @@ jobs:
         run: moon build
       - name: Run the example program
         run: moon run examples/showcase --target native
+      - name: Run the rollback example
+        run: moon run examples/rollback --target native
 
   test:
     name: Test (${{ matrix.target }})

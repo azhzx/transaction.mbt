@@ -1,0 +1,5 @@
+import {
+  "azhzx/transaction",
+}
+
+pkgtype(kind: "executable")
