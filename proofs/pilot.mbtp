@@ -1,0 +1,27 @@
+// Logic side of the phase-A pilot: the record-log STM protocol over
+// parallel FixedArray logs. Predicate ladder follows the skill's
+// "prove concrete updates before semantic meaning" progression.
+
+///|
+/// Entries `values/versions` slots written for log entries `ws[0..i)` hold
+/// exactly the staged values with version bumped once.
+predicate applied_upto(
+  values : FixedArray[Int],
+  versions : FixedArray[Int],
+  w_tv : FixedArray[Int],
+  w_value : FixedArray[Int],
+  w_version : FixedArray[Int],
+  i : Int,
+) {
+  ∀ j : Int,
+    ((0 <= j) && (j < i)) → (
+      (values[w_tv[j]] == w_value[j]) &&
+      (versions[w_tv[j]] == (w_version[j] + 1)))
+}
+
+///|
+/// Every log entry refers to a variable id below `hi` (the committed heap
+/// size), so applying the log never writes out of bounds.
+predicate ids_bounded(w_tv : FixedArray[Int], n : Int, hi : Int) {
+  ∀ k : Int, ((0 <= k) && (k < n)) → (w_tv[k] < hi)
+}

@@ -1,0 +1,3 @@
+proof_enabled = true
+
+pkgtype(kind: "executable")

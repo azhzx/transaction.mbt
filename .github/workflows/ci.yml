@@ -74,3 +74,22 @@ jobs:
       # Informational only: shared runners are too noisy for thresholds.
       - name: Run benchmarks
         run: moon bench --target native --release
+
+  proofs:
+    name: Proofs (Why3/Z3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hustcer/setup-moonbit@v1
+      - name: Update registry index
+        run: moon update
+      - name: Install Z3
+        run: sudo apt-get update && sudo apt-get install -y z3
+      # moon prove exits 0 even on failed goals and can reuse stale lowering,
+      # so run check first and assert the package summary line, not the code.
+      - name: Verify the pilot theorems
+        run: |
+          moon check proofs
+          moon prove proofs 2>&1 | tee prove.log
+          grep -q "1 of 1 packages proved" prove.log

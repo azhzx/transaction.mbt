@@ -1,0 +1,50 @@
+// Logic side of the probes. Quantified predicates over FixedArray indices —
+// the blessed lowering shape (cf. the official checksorted example).
+// Findings so far: logic bodies support FixedArray indexing, arithmetic,
+// quantifiers, and .mbtp predicate calls; they do NOT support struct field
+// access, Array::length, or struct-field mutation in contracted bodies.
+// Mutable state therefore lives in FixedArrays passed explicitly.
+
+///|
+/// Some entry in `ids[0..n)` refers to the variable `tv_id`.
+predicate has_write(ids : FixedArray[Int], tv_id : Int, n : Int) {
+  ∃ k : Int, (0 <= k) && (k < n) && (ids[k] == tv_id)
+}
+
+///|
+/// No entry in `ids[0..n)` refers to `tv_id`.
+predicate no_write_upto(ids : FixedArray[Int], tv_id : Int, n : Int) {
+  ∀ k : Int, ((0 <= k) && (k < n)) → (ids[k] != tv_id)
+}
+
+///|
+/// `v` is the staged value for `tv_id` over the parallel log arrays.
+/// With a distinct-id log this names exactly one entry.
+predicate staged_value_is(
+  ids : FixedArray[Int],
+  values : FixedArray[Int],
+  tv_id : Int,
+  n : Int,
+  v : Int,
+) {
+  ∃ k : Int, (0 <= k) && (k < n) && (ids[k] == tv_id) && (values[k] == v)
+}
+
+///|
+/// All ids in `ids[0..n)` are pairwise distinct (last-wins write log).
+predicate distinct_upto(ids : FixedArray[Int], n : Int) {
+  ∀ i : Int,
+    ∀ j : Int,
+      ((0 <= i) && (i < j) && (j < n)) → (ids[i] != ids[j])
+}
+
+///|
+predicate log_size_ok(ids : FixedArray[Int], values : FixedArray[Int], n : Int) {
+  (0 <= n) && (n <= ids.length()) && (n <= values.length())
+}
+
+///|
+/// Slot 0 of the probe cell array holds `v`.
+predicate cell_is(arr : FixedArray[Int], v : Int) {
+  arr[0] == v
+}
