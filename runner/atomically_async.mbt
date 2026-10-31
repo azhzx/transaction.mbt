@@ -16,7 +16,7 @@ fn ensure_commit_listener() -> Unit {
 
 ///|
 /// Wait until the global commit version is no longer `observed`.
-async fn wait_for_change(observed : Int32) -> Unit {
+async fn wait_for_change(observed : Int64) -> Unit {
   while @transaction.commit_version() == observed {
     commit_cond.wait()
   }

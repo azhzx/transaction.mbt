@@ -4,7 +4,7 @@ package "azhzx/transaction"
 // Values
 pub fn[T] atomically((Txn) -> T raise) -> T raise
 
-pub fn commit_version() -> Int32
+pub fn commit_version() -> Int64
 
 pub fn is_conflict(Error) -> Bool
 
@@ -14,11 +14,11 @@ pub fn on_commit(() -> Unit) -> Unit
 
 // Errors
 pub suberror Conflict {
-  Conflict(Int32)
+  Conflict(Int64)
 }
 
 pub suberror Retry {
-  Retry(Int32)
+  Retry(Int64)
 }
 
 // Types and methods

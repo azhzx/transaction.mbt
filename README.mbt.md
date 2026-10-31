@@ -38,7 +38,9 @@ STM composes instead:
 - **Compositional blocking** — `txn.retry()` blocks the current task *until
   something it read changes*, and `txn.or_else(first, second)` combines two
   blocking operations into one that wakes when either can proceed. No
-  condition variables, no deadlocks, no missed wake-ups.
+  condition variables, no deadlocks, no missed wake-ups. Wake-ups are
+  conservative: any commit wakes a parked transaction, which re-parks if its
+  condition is still unmet.
 - **Automatic restart** — if a read variable is committed by another
   transaction mid-body, the body is rolled back and re-run on a fresh
   snapshot. You write straight-line code; the runtime handles interference.
@@ -103,7 +105,8 @@ test "read, write, and peek" {
 
 `txn.check(cond)` retries until `cond` holds, and `txn.retry()` retries
 unconditionally. Under the async runner the task *parks* (it does not spin)
-and is woken by the next commit to a variable the transaction read:
+and is woken by the next commit (conservatively — an unrelated commit can
+wake it, after which it checks its condition again):
 
 ```mbt check
 ///|
@@ -158,7 +161,9 @@ async test "consumer parks until a producer commits" {
 ```
 
 The body may also `await` freely: uncommitted writes stay private to the
-transaction, and the snapshot is re-validated after every suspension.
+transaction, and the snapshot is re-validated at the next transactional read
+and again at commit time. A retry issued after a suspension restarts the body
+immediately if a commit happened while it was suspended.
 
 ## Ready-made structures
 
@@ -196,8 +201,10 @@ test "queue hands work to a consumer in FIFO order" {
   and reaches the caller unchanged; `is_retry` distinguishes blocking from
   failure.
 - **Transactions do not nest.** An `atomically` call inside a transaction
-  body runs and commits independently; if it invalidates the outer
-  snapshot, the outer transaction restarts automatically.
+  body runs and commits independently; if it invalidates the outer snapshot,
+  the outer transaction restarts automatically — and can restart forever if
+  the inner call always invalidates it. Keep nested atomically calls out of
+  transaction bodies.
 - **Commit ordering.** A global commit clock plus per-`TVar` versions detect
   stale snapshots in O(read set). Validation and commit happen in one
   synchronous section, so no interleaving can slip between them.
@@ -210,6 +217,20 @@ designed for that world. True parallel threads are not exposed by the
 toolchain today; if a shared-memory backend arrives, the design (global
 version clock, read-set validation, private write sets — a TL2-style layout)
 ports by wrapping the validation/commit section in a lock.
+
+### Known limits
+
+- Commit versions, transaction ids and variable versions are 64-bit counters;
+  their wrap-around is not a practical concern. Custom runners should still
+  compare commit versions with `!=` rather than `>`.
+- Manual handles (`Txn::begin`) must be committed or rolled back; dropping one
+  without either leaks its pending writes, because the runtime has no
+  finalizers.
+- `TQueue` copies its backing array on every `push`/`pop`, so it is intended
+  for short queues; see the manual for the complexity note.
+- Nested `atomically` calls commit independently and are not a composition
+  mechanism; if the inner transaction always invalidates the outer snapshot,
+  the outer transaction restarts forever.
 
 ## Development
 
@@ -226,8 +247,8 @@ Tests live in four layers: docstring/README doctests, unit tests (`*_test.mbt`,
 deterministic seeds (`stress_test.mbt`, `chaos_stress_test.mbt`, and their
 runner counterparts), and integration scenarios (`tests/`). A benchmark
 suite (`transaction_bench_test.mbt`) measures the core transaction paths.
-CI runs check, build, both test targets, the example program, coverage, and
-benchmarks on every push and pull request.
+CI runs check, build, the wasm/js/native test targets, both example programs,
+coverage, and benchmarks on every push and pull request.
 
 ### Runnable examples
 

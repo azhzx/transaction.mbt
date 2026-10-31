@@ -1,13 +1,18 @@
 ///|
 /// Raised by `Txn::retry` to abort the current attempt because it cannot make
-/// progress yet. The payload is the global commit version observed at the
-/// moment of the retry.
+/// progress yet. The payload is the commit version at which the transaction's
+/// read set was last validated (its snapshot clock), which may be older than
+/// the current global clock when an asynchronous body suspended.
 ///
-/// A blocking runner (such as `@transaction/runner.atomically_async`) parks
-/// until the commit version advances, then runs the body again from the
-/// beginning. Under `atomically` the error propagates to the caller.
+/// A blocking runner (such as `@transaction/runner.atomically_async`) waits
+/// until `commit_version()` differs from the payload, then runs the body again
+/// from the beginning. If a commit happened after that snapshot — for example
+/// while the body was suspended — the runner restarts immediately instead of
+/// waiting for a future commit, so the commit is never missed. Compare with
+/// `!=` rather than `>`; the 64-bit counter will not wrap in practice. Under
+/// `atomically` the error propagates to the caller.
 pub suberror Retry {
-  Retry(Int32)
+  Retry(Int64)
 }
 
 ///|
@@ -19,16 +24,15 @@ pub suberror Retry {
 /// detected. `atomically` and `atomically_async` restart the body
 /// automatically; only custom runners see this error.
 pub suberror Conflict {
-  Conflict(Int32)
+  Conflict(Int64)
 }
 
 ///|
 /// Whether `err` is the `Retry` raised by `Txn::retry` or `Txn::check`.
 ///
 /// `atomically` declares an abstract `raise` (the body can raise anything),
-/// so a caller's `catch` binds an abstract `Error` that cannot be pattern
-/// matched with constructors. Use this predicate to detect the blocking
-/// condition instead:
+/// so a caller's `catch` binds an abstract `Error`. Use this predicate to
+/// detect the blocking condition without depending on the constructor:
 ///
 /// # Example
 /// ```mbt check

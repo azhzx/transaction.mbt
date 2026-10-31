@@ -357,3 +357,48 @@ test "manual commit conflicts and rolls back after a foreign commit" {
   txn.run(t => t.write(cell, 9))
   inspect(cell.peek(), content="9")
 }
+
+///|
+test "or_else keeps writes made before the branch point" {
+  let cell = @transaction.TVar::new(7)
+  let observed = @transaction.atomically(txn => {
+    txn.write(cell, 10)
+    txn.or_else(
+      t => {
+        t.write(cell, 20)
+        (t.retry() : Int32)
+      },
+      t => t.read(cell),
+    )
+  })
+  inspect(observed, content="10")
+  inspect(cell.peek(), content="10")
+}
+
+///|
+test "or_else retry does not lose the outer write or skip the commit" {
+  let cell = @transaction.TVar::new(7)
+  let before = @transaction.commit_version()
+  @transaction.atomically(txn => {
+    txn.write(cell, 10)
+    txn.or_else(
+      t => {
+        t.write(cell, 20)
+        (t.retry() : Unit)
+      },
+      _ => (),
+    )
+  })
+  inspect(cell.peek(), content="10")
+  inspect(@transaction.commit_version() - before, content="1")
+}
+
+///|
+test "reusing a committed handle does not bump the commit clock" {
+  let cell = @transaction.TVar::new(0)
+  let txn = @transaction.Txn::begin()
+  txn.run(t => t.write(cell, 1))
+  let v1 = @transaction.commit_version()
+  txn.run(_ => ())
+  inspect(@transaction.commit_version() - v1, content="0")
+}

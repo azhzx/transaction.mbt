@@ -19,8 +19,9 @@
 ## 项目目标
 
 1. 让多个 MoonBit 任务之间的共享可变状态**安全且可组合**：任意两个事务合并为
-   一个原子步骤，无需锁、无需考虑加锁顺序、不会错过唤醒。
-2. 核心包零第三方依赖，在所有后端（wasm、wasm-gc、native）均可构建。
+   一个原子步骤，无需锁、无需考虑加锁顺序、不会错过唤醒（唤醒是保守的：
+   任意提交都会唤醒挂起事务，条件不满足时它会再次挂起）。
+2. 核心包零第三方依赖，在所有后端（wasm、wasm-gc、js、native）均可构建。
 3. 提供"会组合的阻塞"：`retry` 阻塞到**事务读过的变量发生变化**为止；
    `or_else` 把两个阻塞操作合并为一个。
 4. 保持小而可审计：核心仅数百行，采用 TL2 风格设计（全局提交时钟、按变量
@@ -37,8 +38,8 @@ moon add azhzx/transaction
 ```toml
 import {
   "azhzx/transaction" @transaction,
-  "azhzx/transaction/runner" @runner, # 仅异步事务需要
-  "moonbitlang/async" @aio,           # 仅 runner 需要
+  "azhzx/transaction/runner" @runner, // 仅异步事务需要
+  "moonbitlang/async" @aio,           // 仅 runner 需要
 }
 ```
 
@@ -67,7 +68,8 @@ import {
 
 **retry / check** —— `txn.retry()` 表示"当前无法推进"并中止本次尝试；
 `txn.check(cond)` 在条件不成立时重试。在异步 runner 下，任务会**挂起**，直到
-本事务读过的变量被他人提交，然后从头重跑事务体。
+全局提交时钟越过本事务最后一次校验的快照，然后从头重跑事务体；若挂起期间
+已经发生过相关提交，则立即重跑，而不是等待下一次提交。
 
 **or_else** —— 组合备选：`txn.or_else(first, second)` 先跑 `first`；若其
 retry，则丢弃其全部效果改跑 `second`。在 runner 下，组合后的操作在**任一**
@@ -82,7 +84,7 @@ retry，则丢弃其全部效果改跑 `second`。在 runner 下，组合后的�
 @runner.atomically_async(txn => {
   let v = txn.read(cell)
   @aio.pause()               // 可任意挂起
-  txn.write(cell, v + 1)     // 恢复后按新快照校验
+  txn.write(cell, v + 1)     // 下次读取/提交时重新校验
 })
 ```
 
@@ -104,7 +106,7 @@ retry，则丢弃其全部效果改跑 `second`。在 runner 下，组合后的�
 | `Txn::rollback` | `(Txn) -> Unit` | 手动回滚（自定义 runner） |
 | `atomically` | `((Txn) -> T raise) -> T raise` | 运行一个同步事务 |
 | `is_retry` / `is_conflict` | `(Error) -> Bool` | 在抽象 `raise` 上做错误分派 |
-| `commit_version` | `() -> Int` | 全局提交时钟（自定义 runner 用） |
+| `commit_version` | `() -> Int64` | 全局提交时钟（自定义 runner 用） |
 | `on_commit` | `(() -> Unit) -> Unit` | 提交后回调（自定义 runner 用） |
 | `TMVar::*` | 见 `.mbti` | 空/满单槽单元 |
 | `TQueue::*` | 见 `.mbti` | 事务性 FIFO 队列 |
@@ -115,7 +117,7 @@ retry，则丢弃其全部效果改跑 `second`。在 runner 下，组合后的�
 
 | 条目 | 用途 |
 |---|---|
-| `atomically_async(f)` | 运行可 await 的事务；`Retry` 挂起任务直到任意提交，`Conflict` 让出一次后自动重跑 |
+| `atomically_async(f)` | 运行可 await 的事务；`Retry` 挂起任务直到时钟越过其快照（挂起期间已发生的提交会立即触发重跑），`Conflict` 让出一次后自动重跑 |
 
 自定义 runner 可用的底层原语：`Txn::begin`、`Txn::run`、
 `Txn::run_async`、`Txn::commit`、`Txn::rollback`、`commit_version`、
@@ -123,7 +125,7 @@ retry，则丢弃其全部效果改跑 `second`。在 runner 下，组合后的�
 `run_async`，或手动 `write` + `commit`），并在 `Retry` / `Conflict` 时重启
 ——正是 `atomically` 与 `atomically_async` 内部的做法。`commit` 校验读集并
 原子应用缓冲写入（快照过期则回滚后抛 `Conflict`）；`rollback` 丢弃全部
-写入。两者之后句柄均可复用。
+写入，且都会清空句柄日志，因此之后句柄仍可复用。
 
 ## 语义与使用规则
 
@@ -135,11 +137,14 @@ retry，则丢弃其全部效果改跑 `second`。在 runner 下，组合后的�
 - **事务体可能重跑。** 把 I/O、日志等副作用移出事务体，或做成幂等。
 - **值必须不可变。** 容器采用写时复制（`copy()` 后改副本再 `write` 回去）。
 - **事务不可嵌套。** 内层 `atomically` 独立提交；若其使外层快照失效，外层自动
-  重启。
+  重启——若内层每次都使外层失效，外层会永久重启。不要把嵌套 `atomically`
+  写进事务体。
 - **阻塞的事务没有任何效果。** `retry` 触发时，本次尝试的全部写入都会回滚——
   见下文屏障模式。
 - **错误原样传播。** 事务体抛出的错误回滚后直达调用方；用 `is_retry`
   区分"被阻塞"与"失败"。
+- **取消不是事务性的。** 在事务体内挂起时取消任务会展开事务体、回滚事务且
+  不提交；若事务体捕获取消错误后正常返回，事务仍会照常提交。
 
 ## 组合式阻塞模式
 
@@ -186,6 +191,8 @@ retry，则丢弃其全部效果改跑 `second`。在 runner 下，组合后的�
   逆序执行）。
 - `Txn::read` 仅在全局时钟自上次校验后发生变化时才重验读集，然后优先返回
   本事务的 pending 值，否则返回已提交值。
+- `Txn::retry` 携带最后一次校验的快照时钟；runner 等到时钟与之不同再重跑，
+  因此挂起期间已发生的提交会触发立即重跑，而不是丢唤醒。
 - 验证与提交在同一个**同步段**内完成；协程只在挂起点切换，因此校验与提交
   之间不可能被插入其他事务——无需任何锁。
 - `or_else` 在进入第一分支前记录三份日志的长度，retry 后截断回标记处，第二
@@ -211,20 +218,20 @@ MoonBit 任务在单线程事件循环上协作调度，任意数量任务共享
 | runner | ✓ | — | ✓ | ✓ |
 
 核心包零依赖，在所有后端均可类型检查。runner 依赖 `moonbitlang/async`，
-其当前版本（0.21.x）没有提供 wasm-gc 入口（`run_async_main`），因此依赖
+其固定版本（0.21.3）没有提供 wasm-gc 入口（`run_async_main`），因此依赖
 runner 的包声明了 `supported_targets = "wasm+js+native"`，工具链在
 wasm-gc 上自动跳过它们。待 `moonbitlang/async` 后续版本支持 wasm-gc 后，
 放宽声明即可。
 
 ## 测试与持续集成
 
-- 120 个测试，分四层：文档/README doctest、单元测试（黑盒 + 白盒）、固定
+- 141 个测试，分四层：文档/README doctest、单元测试（黑盒 + 白盒）、固定
   种子的随机压力测试（模型等价、不变量、回滚完备性）、集成场景（`tests/`，
   真实多任务模式）。压力套件包含 torn-state 检测器：更新者原子推进 8 个
   TVar，观察者读到一半故意挂起——按构造不可能观察到新旧混合值，测试断言其
   恒为零。
-- CI（GitHub Actions）执行 `moon check`、`moon build`、双后端 `moon test`、
-  可运行示例（`moon run examples/showcase`）、覆盖率（`moon test --enable-coverage` +
+- CI（GitHub Actions）执行 `moon check`、`moon build`、wasm/js/native
+  三后端 `moon test`、两个可运行示例、覆盖率（`moon test --enable-coverage` +
   `moon coverage report`）与基准测试（`moon bench --target native
   --release`，仅供参考）。
 
@@ -248,7 +255,8 @@ wasm-gc 上自动跳过它们。待 `moonbitlang/async` 后续版本支持 wasm-
 | `TMVar` put+take 对 | ~365 ns |
 
 队列两组数字定量呈现了已知技术债：数组拷贝式实现让长队列变贵，这正是
-路线图中双列表表示法的动机。
+路线图中双列表表示法的动机。表中数字仅供量级参考；硬件与工具链会改变它们，
+依赖具体数值前请重跑 `moon bench`。
 
 ## 与其他方案对比
 
@@ -269,7 +277,8 @@ wasm-gc 上自动跳过它们。待 `moonbitlang/async` 后续版本支持 wasm-
 回滚自己的写入。把"产生效果"与"等待条件"拆成两个事务。
 
 **同步 `atomically` 怎么捕获"被阻塞"？** `catch { err => if
-@transaction.is_retry(err) ... }` —— 抽象 `raise` 上不能使用构造器模式匹配。
+@transaction.is_retry(err) ... }` —— `atomically` 声明抽象 `raise`，用谓词分派即可，
+不要依赖错误构造器。
 
 **这是 GHC STM 的移植吗？** 不是。语义（retry/orElse、按读集阻塞）遵循已
 发表的 STM 文献；实现为原创 MoonBit 代码，结构上参考 TL2 算法族。

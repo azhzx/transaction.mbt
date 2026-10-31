@@ -219,3 +219,34 @@ test "error predicates discriminate" {
   assert_false(is_conflict(Retry(1)))
   assert_false(is_retry(Failure("x")))
 }
+
+///|
+test "commit clears the logs so a reused handle stays clean" {
+  let tv = TVar::new(0)
+  let txn = Txn::begin()
+  txn.write(tv, 1)
+  txn.run(_ => ())
+  inspect(txn.commits.length(), content="0")
+  inspect(txn.undo.length(), content="0")
+  inspect(txn.validators.length(), content="0")
+  let before = commit_version()
+  txn.run(_ => ())
+  inspect(commit_version() - before, content="0")
+}
+
+///|
+test "retry reports the last validated snapshot version" {
+  let tv = TVar::new(0)
+  let other = TVar::new(0)
+  let txn = Txn::begin()
+  let before = commit_version()
+  ignore(txn.read(tv))
+  atomically(t => t.write(other, 1))
+  let payload : Int64 = try {
+    let _ = (txn.retry() : Unit)
+    -1
+  } catch {
+    Retry(v) => v
+  }
+  inspect(payload - before, content="0")
+}

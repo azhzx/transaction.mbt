@@ -1,6 +1,6 @@
 ///|
 /// Monotonic identifier source for transactions.
-let txn_next_id : Ref[Int32] = Ref(0)
+let txn_next_id : Ref[Int64] = Ref(0)
 
 ///|
 /// A handle to one running transaction.
@@ -10,11 +10,11 @@ let txn_next_id : Ref[Int32] = Ref(0)
 /// Prefer `atomically` (or `@transaction/runner.atomically_async` for bodies
 /// that need to await) over creating and running a handle manually.
 pub struct Txn {
-  priv id : Int32
+  priv id : Int64
   priv undo : Array[() -> Unit]
-  priv commits : Array[() -> Unit]
+  priv commits : Array[() -> Bool]
   priv validators : Array[() -> Bool]
-  priv mut validated_at : Int32
+  priv mut validated_at : Int64
 }
 
 ///|
@@ -104,15 +104,22 @@ pub fn[T] Txn::read(self : Txn, tv : TVar[T]) -> T raise Conflict {
 /// ```
 pub fn[T] Txn::write(self : Txn, tv : TVar[T], value : T) -> Unit {
   self.record_read(tv)
-  self.undo.push(() => tv.pending.remove(self.id))
+  let previous = tv.pending.get(self.id)
+  self.undo.push(() => {
+    match previous {
+      Some(previous) => tv.pending.set(self.id, previous)
+      None => tv.pending.remove(self.id)
+    }
+  })
   self.commits.push(() => {
     match tv.pending.get(self.id) {
       Some(value) => {
         tv.value = value
         tv.pending.remove(self.id)
         tv.version = tv.version + 1
+        true
       }
-      None => ()
+      None => false
     }
   })
   tv.pending.set(self.id, value)
@@ -141,11 +148,13 @@ pub fn[T] Txn::modify(
 ///|
 /// Abort the current attempt because it cannot make progress.
 ///
-/// The transaction is rolled back and `Retry` is raised. Under
-/// `@transaction/runner.atomically_async` the current task parks until some
-/// transaction commits, then the body runs again from the beginning. Under
-/// `atomically` the `Retry` error propagates to the caller, since synchronous
-/// code cannot block.
+/// The transaction is rolled back and `Retry` is raised with the commit
+/// version of the transaction's last validated snapshot. Under
+/// `@transaction/runner.atomically_async` the current task parks until the
+/// commit clock moves past that snapshot, then the body runs again from the
+/// beginning; if a commit already happened since the snapshot, the body runs
+/// again immediately. Under `atomically` the `Retry` error propagates to the
+/// caller, since synchronous code cannot block.
 ///
 /// # Example
 /// ```mbt check
@@ -165,8 +174,8 @@ pub fn[T] Txn::modify(
 ///   inspect(balance.peek(), content="0")
 /// }
 /// ```
-pub fn[T] Txn::retry(_self : Txn) -> T raise Retry {
-  raise Retry(commit_version())
+pub fn[T] Txn::retry(self : Txn) -> T raise Retry {
+  raise Retry(self.validated_at)
 }
 
 ///|
@@ -256,15 +265,19 @@ pub fn Txn::commit(self : Txn) -> Unit raise Conflict {
       raise Conflict(commit_version())
     }
   }
-  let changed = !self.commits.is_empty()
+  let mut applied = 0
   for action in self.commits {
-    action()
+    if action() {
+      applied = applied + 1
+    }
   }
+  self.commits.clear()
   self.undo.clear()
   self.validators.clear()
-  if changed {
+  if applied > 0 {
     bump_commit_version()
   }
+  self.validated_at = commit_version()
 }
 
 ///|
@@ -299,8 +312,8 @@ pub fn[T] Txn::run(self : Txn, f : (Txn) -> T raise) -> T raise {
 ///
 /// The body may suspend. Uncommitted writes stay private to this transaction
 /// (other transactions keep reading the last committed value), and the read
-/// set is validated whenever the body observes another value and again at
-/// commit time, so a body that awaited resumes on a checked snapshot.
+/// set is revalidated at the next transactional read and again at commit time,
+/// so a body that awaited cannot commit on a stale snapshot.
 ///
 /// This is the low-level primitive behind
 /// `@transaction/runner.atomically_async`; prefer calling that instead.

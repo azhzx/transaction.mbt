@@ -1,20 +1,21 @@
 ///|
 /// The global commit version. It starts at zero and advances once for every
 /// transaction that commits at least one write.
-let commit_clock : Ref[Int32] = Ref(0)
+let commit_clock : Ref[Int64] = Ref(0)
 
 ///|
 /// Callbacks invoked after a transaction commits writes. Listeners are
-/// permanent and must not raise or block.
+/// permanent and must not block or start transactions.
 let commit_listeners : Array[() -> Unit] = []
 
 ///|
 /// The current global commit version.
 ///
-/// A transaction that retried at version `v` should run again after this value
-/// becomes greater than `v`. Blocking runners use it to decide when to wake a
-/// parked transaction.
-pub fn commit_version() -> Int32 {
+/// A transaction that retried with snapshot version `v` should run again once
+/// this value is no longer `v`. Compare with `!=`, not `>`; the counter is a
+/// 64-bit value whose wrap-around is not a practical concern. Blocking runners
+/// use it to decide when to wake a parked transaction.
+pub fn commit_version() -> Int64 {
   commit_clock.val
 }
 

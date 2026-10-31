@@ -69,3 +69,47 @@ async test "or_else picks whichever branch can proceed" {
   })
   inspect(picked, content="slow-path")
 }
+
+///|
+async test "retry after a suspension sees a commit that already happened" {
+  let cell = @transaction.TVar::new(0)
+  let read_done = Ref(false)
+  @aio.with_task_group(group => {
+    group.spawn_bg(() => {
+      while !read_done.val {
+        @aio.pause()
+      }
+      @runner.atomically_async(txn => txn.write(cell, 1))
+    })
+    let got = @runner.atomically_async(txn => {
+      let value = txn.read(cell)
+      read_done.val = true
+      @aio.sleep(20)
+      txn.check(value > 0)
+      value
+    })
+    inspect(got, content="1")
+  })
+}
+
+///|
+async test "cancelling a transaction mid-body rolls back its writes" {
+  let cell = @transaction.TVar::new(1)
+  let started = Ref(false)
+  @aio.with_task_group(group => {
+    let task = group.spawn(() => {
+      @runner.atomically_async(txn => {
+        txn.write(cell, 99)
+        started.val = true
+        @aio.sleep(1000)
+      })
+    })
+    while !started.val {
+      @aio.pause()
+    }
+    task.cancel()
+  })
+  inspect(cell.peek(), content="1")
+  @transaction.atomically(txn => txn.write(cell, 2))
+  inspect(cell.peek(), content="2")
+}

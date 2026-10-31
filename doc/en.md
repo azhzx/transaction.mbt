@@ -23,7 +23,7 @@ composes (`retry` / `or_else`) instead of deadlocking.
    any two transactions combine into one atomic step without locks,
    lock ordering, or missed wake-ups.
 2. Keep the core dependency-free so it builds on every backend (wasm,
-   wasm-gc, native).
+   wasm-gc, js, native).
 3. Offer blocking that composes: `retry` blocks *until something the
    transaction read changes*, and `or_else` merges two blocking operations
    into one.
@@ -39,22 +39,11 @@ moon add azhzx/transaction
 
 Then import the packages you need in your `moon.pkg`:
 
-```json
-{
-  "import": [
-    "azhzx/transaction",
-    "azhzx/transaction/runner"
-  ]
-}
-```
-
-TOML style (`moon.pkg`):
-
 ```toml
 import {
   "azhzx/transaction" @transaction,
-  "azhzx/transaction/runner" @runner, # only for async transactions
-  "moonbitlang/async" @aio,           # only for the runner
+  "azhzx/transaction/runner" @runner, // only for async transactions
+  "moonbitlang/async" @aio,           // only for the runner
 }
 ```
 
@@ -85,8 +74,10 @@ transactions only at commit.
 
 **retry / check** — `txn.retry()` aborts the attempt because it cannot
 proceed; `txn.check(cond)` retries unless `cond` holds. Under the async
-runner the task *parks* until a variable the transaction read has been
-committed by someone else, then the body runs again from the beginning.
+runner the task *parks* until the commit clock moves past the snapshot the
+transaction last validated, then the body runs again from the beginning. If a
+commit already happened while the body was suspended, the body re-runs
+immediately instead of waiting for a future commit.
 
 **or_else** — merges alternatives: `txn.or_else(first, second)` runs
 `first`; if it retries, its effects are discarded and `second` runs instead.
@@ -102,7 +93,7 @@ retries while empty).
 @runner.atomically_async(txn => {
   let v = txn.read(cell)
   @aio.pause()               // suspend freely
-  txn.write(cell, v + 1)     // validated against a fresh snapshot
+  txn.write(cell, v + 1)     // revalidated at the next read / commit
 })
 ```
 
@@ -124,7 +115,7 @@ retries while empty).
 | `Txn::rollback` | `(Txn) -> Unit` | Low-level manual rollback (custom runners) |
 | `atomically` | `((Txn) -> T raise) -> T raise` | Run one synchronous transaction |
 | `is_retry` / `is_conflict` | `(Error) -> Bool` | Dispatch on the abstract `raise` |
-| `commit_version` | `() -> Int` | The global commit clock (custom runners) |
+| `commit_version` | `() -> Int64` | The global commit clock (custom runners) |
 | `on_commit` | `(() -> Unit) -> Unit` | Post-commit hook (custom runners) |
 | `TMVar::*` | see `.mbti` | Empty-or-full one-slot cell |
 | `TQueue::*` | see `.mbti` | Transactional FIFO queue |
@@ -136,7 +127,7 @@ when they refer to the same variable.
 
 | Item | Purpose |
 |---|---|
-| `atomically_async(f)` | Run an await-capable transaction; `Retry` parks the task until any commit, `Conflict` restarts after one yield |
+| `atomically_async(f)` | Run an await-capable transaction; `Retry` parks the task until the clock moves past its snapshot (a commit that already happened restarts it immediately), `Conflict` restarts after one yield |
 
 Low-level primitives for custom runners: `Txn::begin`, `Txn::run`,
 `Txn::run_async`, `Txn::commit`, `Txn::rollback`, `commit_version`,
@@ -145,7 +136,8 @@ Low-level primitives for custom runners: `Txn::begin`, `Txn::run`,
 restarts on `Retry` / `Conflict` — exactly what `atomically` and
 `atomically_async` do internally. `commit` validates and applies the
 buffered writes (raising `Conflict` after rolling back if the snapshot went
-stale); `rollback` discards them. Both leave the handle reusable.
+stale); `rollback` discards them. Both clear the handle's logs, so it stays
+reusable.
 
 ## Semantics and rules
 
@@ -163,11 +155,17 @@ stale); `rollback` discards them. Both leave the handle reusable.
 - **Values must be immutable.** Copy-on-write for containers (`copy()`,
   then mutate the copy, then `write`).
 - **Transactions do not nest.** An inner `atomically` commits
-  independently; if it invalidates the outer snapshot the outer restarts.
+  independently; if it invalidates the outer snapshot the outer restarts — and
+  can restart forever if the inner call always invalidates it. Keep nested
+  `atomically` calls out of transaction bodies.
 - **A blocked transaction has no effects.** When `retry` fires, *all*
   writes of that attempt are rolled back — see the barrier pattern below.
 - **Errors propagate unchanged.** Body errors roll back and reach the
   caller; use `is_retry` to tell "blocked" from "failed".
+- **Cancellation is not transactional.** Cancelling a task that is suspended
+  inside a transaction unwinds the body, rolls the transaction back, and does
+  not commit. If the body catches the cancellation and returns normally, the
+  write set is committed as usual.
 
 ## Compositional blocking patterns
 
@@ -219,6 +217,10 @@ cooperatively scheduled, single-threaded runtime:
 - `Txn::read` revalidates the read set only when the global clock moved
   since the last validation, then returns the pending value of this
   transaction if present, else the committed value.
+- `Txn::retry` reports the commit version of the last validated snapshot, so a
+  runner can tell whether a commit happened while the body was suspended. A
+  runner waits until the clock differs from that version, so an already-missed
+  change triggers an immediate re-run instead of a lost wake-up.
 - Validation and commit run in one **synchronous section**; because
   coroutines only switch at suspension points, no interleaving can slip
   between check and commit — no locks needed.
@@ -250,7 +252,7 @@ Backend support:
 | runner | ✓ | — | ✓ | ✓ |
 
 The core package is dependency-free and type-checks on every backend. The
-runner needs `moonbitlang/async`; its current release (0.21.x) ships no
+runner needs `moonbitlang/async`; the pinned release (0.21.3) ships no
 wasm-gc entry point (`run_async_main`), so the runner-dependent packages
 declare `supported_targets = "wasm+js+native"` and the toolchain skips them
 on wasm-gc. If a later `moonbitlang/async` adds wasm-gc support, the
@@ -258,7 +260,7 @@ declaration can simply be widened.
 
 ## Testing and CI
 
-- 120 tests across four layers: docstring/README doctests, unit tests
+- 141 tests across four layers: docstring/README doctests, unit tests
   (blackbox + whitebox), randomized stress with deterministic seeds
   (model equivalence, invariants, rollback completeness), and integration
   scenarios (`tests/`, realistic multi-task patterns).
@@ -266,8 +268,8 @@ declaration can simply be widened.
   eight TVars atomically while observers suspend mid-read — a mixed
   old/new observation is impossible by construction and asserted to stay
   at zero.
-- CI (GitHub Actions) runs `moon check`, `moon build`, `moon test` on wasm
-  and native, the runnable example (`moon run examples/showcase`), coverage
+- CI (GitHub Actions) runs `moon check`, `moon build`, `moon test` on
+  wasm, js and native, both runnable examples, coverage
   (`moon test --enable-coverage` + `moon coverage report`), and the
   benchmark suite (`moon bench --target native --release`, informational).
 
@@ -293,7 +295,8 @@ Silicon:
 
 The queue numbers quantify the known debt: the array-copy representation
 makes long queues expensive, which is why a two-list representation is on
-the roadmap.
+the roadmap. These figures are indicative; hardware and toolchain changes
+shift them, so re-run `moon bench` before relying on a number.
 
 ## Comparison with alternatives
 
@@ -316,8 +319,8 @@ the barrier pattern above: a retried attempt rolls back its writes. Commit
 the effect and wait in separate transactions.
 
 **How do I catch "it blocked" from sync `atomically`?** `catch { err => if
-@transaction.is_retry(err) ... }` — the abstract `raise` cannot be pattern
-matched with constructors.
+@transaction.is_retry(err) ... }` — `atomically` declares an abstract `raise`,
+so use the predicate to dispatch without depending on the error constructor.
 
 **Is this a port of GHC's STM?** No. The semantics (retry/orElse, blocking
 on the read set) follow the published STM literature; the implementation is
